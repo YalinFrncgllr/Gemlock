@@ -1,5 +1,5 @@
 """
-Gemlock 2.0.0 — Riot hesap yöneticisi
+Gemlock 2.1.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -48,7 +48,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "2.0.0"
+VERSION = "2.1.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -487,7 +487,10 @@ STR = {
         "upd_now": "Check now", "sc_ok_t": "Done", "sc_ok": "A 'Gemlock' shortcut was created on your desktop.",
         "sc_fail": "Could not create the shortcut.", "sc_btn": "Create desktop shortcut",
         "dpapi": "Could not decrypt (it may belong to another Windows user)",
-        "add_account": "+  Add account", "logging_in": "Logging in…", "minimize": "Minimize", "close": "Close", "show": "Show", "hide": "Hide", "settings": "Settings", "back": "←  Back", "sec_general": "General",
+        "add_account": "+  Add account", "logging_in": "Logging in…", "f_region": "Region",
+        "auto": "Auto", "pin": "Pin to top", "unpin": "Unpin", "sort_game": "Sort by the selected game",
+        "sort_hint": "Accounts with ranks in the selected game come first; pinned accounts always stay on top.",
+        "sec_list": "Account list", "region_auto_hint": "Gemlock detects each account's region on its first login.", "minimize": "Minimize", "close": "Close", "show": "Show", "hide": "Hide", "settings": "Settings", "back": "←  Back", "sec_general": "General",
         "sec_val": "Valorant ranks", "refresh_ranks": "Refresh ranks now", "sec_app": "App", "sec_data": "Your data",
         "data_info": "Accounts and passwords are stored only on this PC, encrypted by Windows. Nothing is uploaded.",
         "open_folder": "Open data folder", "move_up": "Move up", "move_down": "Move down", "cancel": "Cancel",
@@ -526,7 +529,10 @@ STR = {
         "upd_now": "Şimdi kontrol et", "sc_ok_t": "Tamam", "sc_ok": "Masaüstüne 'Gemlock' kısayolu oluşturuldu.",
         "sc_fail": "Kısayol oluşturulamadı.", "sc_btn": "Masaüstüne simgeli kısayol oluştur",
         "dpapi": "Şifre çözülemedi (başka bir Windows kullanıcısına ait olabilir)",
-        "add_account": "+  Hesap ekle", "logging_in": "Giriş yapılıyor…", "minimize": "Küçült", "close": "Kapat", "show": "Göster", "hide": "Gizle", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
+        "add_account": "+  Hesap ekle", "logging_in": "Giriş yapılıyor…", "f_region": "Bölge",
+        "auto": "Otomatik", "pin": "En üste sabitle", "unpin": "Sabitlemeyi kaldır", "sort_game": "Seçili oyuna göre sırala",
+        "sort_hint": "Seçili oyunda rank'ı olan hesaplar üstte; sabitlenen hesaplar her zaman en üstte.",
+        "sec_list": "Hesap listesi", "region_auto_hint": "Gemlock her hesabın bölgesini ilk girişte kendisi bulur.", "minimize": "Küçült", "close": "Kapat", "show": "Göster", "hide": "Gizle", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
         "sec_val": "Valorant rank'ları", "refresh_ranks": "Rank'ları şimdi yenile", "sec_app": "Uygulama",
         "sec_data": "Verilerin",
         "data_info": "Hesapların ve şifrelerin sadece bu bilgisayarda, Windows şifrelemesiyle saklanıyor. Hiçbir yere yüklenmez.",
@@ -822,6 +828,20 @@ def _legacy_color(text):
         if word in _LEGACY_COLOR:
             return _LEGACY_COLOR[word]
     return None
+
+
+# Riot Client'ın verdiği bölge kodu -> Valorant rank sunucusunun bölgesi
+REGION_TO_AFFINITY = {
+    "TR": "eu", "EUW": "eu", "EUNE": "eu", "EU": "eu", "RU": "eu", "ME": "eu", "MENA": "eu",
+    "NA": "na", "PBE": "na", "LATAM": "latam", "LAN": "latam", "LAS": "latam", "LA1": "latam", "LA2": "latam",
+    "BR": "br", "KR": "kr", "AP": "ap", "JP": "ap", "OCE": "ap", "OC1": "ap", "SEA": "ap", "SG": "ap",
+    "PH": "ap", "TH": "ap", "TW": "ap", "VN": "ap",
+}
+
+
+def affinity_of(account, default="eu"):
+    code = (account.get("region") or "").upper()
+    return REGION_TO_AFFINITY.get(code, default)
 
 
 def fetch_val_rank(region, name, tag, version):
@@ -1148,7 +1168,9 @@ class App(tk.Tk):
         if "blitz_games" not in self.settings:
             old = bool(self.settings.get("blitz", False))  # eski tek ayar LoL ve TFT'ye taşınır
             self.settings["blitz_games"] = {"valorant": False, "league_of_legends": old, "tft": old}
-        self.game.trace_add("write", lambda *_: (self.update_blitz_box(), self.paint_games()))
+        self.game.trace_add("write", lambda *_: (self.update_blitz_box(), self.paint_games(),
+                                                  self.refresh() if self.row_widgets is not None else None))
+        self.row_widgets = None
         self._last_sel = None
         self.sel_index = None
         self.status_text = ""
@@ -1266,12 +1288,15 @@ class App(tk.Tk):
         hdr = [(COL_W["bar"] + COL_W["num"], ""), (COL_W["name"], t("h_account")),
                (COL_W["vi"] + COL_W["vt"], "VALORANT"), (COL_W["li"] + COL_W["lt"], "LOL"),
                (COL_W["ti"] + COL_W["tt"], "TFT")]
-        for w, txt in hdr:
+        self.head_labels = {}
+        for (w, txt), key in zip(hdr, (None, None, "vt", "lt", "tt")):
             c = tk.Frame(head, bg=PANEL, width=w, height=28)
             c.pack(side="left")
             c.pack_propagate(False)
-            tk.Label(c, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w").pack(
-                fill="both", expand=True, padx=(2, 0))
+            lb = tk.Label(c, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w")
+            lb.pack(fill="both", expand=True, padx=(2, 0))
+            if key:
+                self.head_labels[key] = lb
         tk.Frame(box.body, bg=LINE, height=1).pack(fill="x")
         self.rows_frame = tk.Frame(box.body, bg=PANEL)
         self.rows_frame.pack(fill="x")
@@ -1494,14 +1519,34 @@ class App(tk.Tk):
     def selected(self):
         return self.sel_index
 
+    def display_order(self):
+        """Ekranda görünen sıra: sabitlenenler en üstte; istenirse seçili oyunda rank'ı olanlar önce."""
+        idx = list(range(len(self.accounts)))
+        game = self.game.get()
+
+        def has_data(i):
+            a = self.accounts[i]
+            if game == "valorant":
+                v = self.rank_of(a, "val")
+                return bool(v.get("cur") or v.get("last") or v.get("peak") or ("short" in v and "k" not in v))
+            if game in LEAGUE_GAMES:
+                l = self.rank_of(a, "lol")
+                if "k" not in l:
+                    return bool(l.get("short"))
+                return bool(l.get("tft") if game == "tft" else (l.get("solo") or l.get("prev")))
+            return True
+
+        sort_on = self.settings.get("sort_by_game", True)
+        return sorted(idx, key=lambda i: (not self.accounts[i].get("pinned"), (not has_data(i)) if sort_on else False))
+
     def select(self, i, user=True):
         if not self.accounts:
             self.sel_index = None
             return
         i = max(0, min(i, len(self.accounts) - 1))
         self.sel_index = i
-        for k, (row, bar, cells, chip) in enumerate(self.row_widgets):
-            bg = SEL if k == i else PANEL
+        for acc_i, row, bar, cells, chip in self.row_widgets:
+            bg = SEL if acc_i == i else PANEL
             for w in [row, bar] + cells:
                 w.config(bg=bg)
             if chip:
@@ -1511,8 +1556,12 @@ class App(tk.Tk):
         self.show_detail()
 
     def move_sel(self, d):
-        if self.sel_index is not None:
-            self.select(self.sel_index + d)
+        if self.sel_index is None:
+            return
+        order = [r[0] for r in self.row_widgets]
+        if self.sel_index in order:
+            pos = max(0, min(order.index(self.sel_index) + d, len(order) - 1))
+            self.select(order[pos])
 
     def refresh(self, select_last=False):
         cur = self.selected()
@@ -1528,26 +1577,38 @@ class App(tk.Tk):
             c.pack_propagate(False)
             return c
 
-        for i, a in enumerate(self.accounts):
+        game = self.game.get()
+        focus_col = {"valorant": "vt", "league_of_legends": "lt", "tft": "tt"}.get(game)
+        for name_key, lb in getattr(self, "head_labels", {}).items():
+            lb.config(fg=ACC if name_key == focus_col else MUTED)
+        for pos, i in enumerate(self.display_order()):
+            a = self.accounts[i]
             row = tk.Frame(self.rows_frame, bg=PANEL)
             row.pack(fill="x")
-            if i:
+            if pos:
                 tk.Frame(self.rows_frame, bg=ROW_LINE, height=1).pack(fill="x", before=row)
             bar = cell(row, COL_W["bar"])
             cells = []
             c = cell(row, COL_W["num"])
             chip = None
-            if i < 9:
+            if pos < 9:
                 chip = RoundBox(c, r=4, fill=KBD, outer=PANEL)
-                chip.add(tk.Label(chip.body, text=str(i + 1), bg=KBD, fg=FG, font=("Segoe UI", 7, "bold"),
+                chip.add(tk.Label(chip.body, text=str(pos + 1), bg=KBD, fg=FG, font=("Segoe UI", 7, "bold"),
                                   padx=4)).pack()
                 chip.place(relx=1, rely=.5, x=-6, anchor="e")
             cells += [c]
             c = cell(row, COL_W["name"])
-            name = tk.Label(c, text=fit_text(a["name"], name_font, COL_W["name"] - 8), bg=PANEL, fg=FG,
-                            font=name_font, anchor="w")
-            name.pack(fill="both", expand=True)
+            region = (a.get("region") or "").upper()
+            pin = "★ " if a.get("pinned") else ""
+            room = COL_W["name"] - 8 - (len(region) * 7 + 14 if region else 0)
+            name = tk.Label(c, text=pin + fit_text(a["name"], name_font, room - (14 if pin else 0)), bg=PANEL,
+                            fg=FG, font=name_font, anchor="w")
+            name.pack(side="left", fill="y")
             cells += [c, name]
+            if region:
+                rtag = tk.Label(c, text=region, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"))
+                rtag.pack(side="left", padx=(6, 0))
+                cells.append(rtag)
             vr, lr = self.rank_of(a, "val"), self.rank_of(a, "lol")
             warn = bool(self.decay_days(a))
             for (text, color, ikey), (wi, wt) in (
@@ -1562,8 +1623,10 @@ class App(tk.Tk):
                     dot = tk.Label(ci, text="●" if color else "○", bg=PANEL, fg=color or MUTED, font=("Segoe UI", 8))
                 dot.pack(fill="both", expand=True)
                 ct = cell(row, COL_W[wt])
+                # seçili oyunun sütunu öne çıkar, diğerleri bir ton soluk
+                base = FG if (focus_col is None or wt == focus_col) else "#b5b5b5"
                 lab = tk.Label(ct, text=fit_text(text, small_font, COL_W[wt] - 6), bg=PANEL,
-                               fg=WARN if (warn and wt == "lt") else (FG if color else MUTED), font=small_font,
+                               fg=WARN if (warn and wt == "lt") else (base if color else MUTED), font=small_font,
                                anchor="w")
                 lab.pack(fill="both", expand=True, padx=(2, 0))
                 cells += [ci, dot, ct, lab]
@@ -1572,7 +1635,7 @@ class App(tk.Tk):
                 w.bind("<Button-3>", lambda e, k=i: self.row_menu(e, k))
                 w.bind("<Button-1>", lambda e, k=i: self.select(k))
                 w.bind("<Double-Button-1>", lambda e, k=i: (self.select(k), self.choose()))
-            self.row_widgets.append((row, bar, cells, chip))
+            self.row_widgets.append((i, row, bar, cells, chip))
         if self.accounts:
             i = self.settings.get("last", 0) if (select_last or cur is None) else cur
             self.select(i, user=False)
@@ -1624,15 +1687,15 @@ class App(tk.Tk):
                 ver = f"b{int(now // VAL_IDLE_SEC)}"  # 6 saatlik dilim: herkes aynı önbelleği paylaşır
             else:
                 continue
-            todo.append((k, name, tag, ver))
+            todo.append((k, name, tag, ver, affinity_of(a, region)))
         if not todo:
             return
 
         def work():
             busy = failed = 0
-            for k, name, tag, ver in todo:
+            for k, name, tag, ver, reg in todo:
                 try:
-                    summ = summarize_val(fetch_val_rank(region, name, tag, ver))
+                    summ = summarize_val(fetch_val_rank(reg, name, tag, ver))
                     with self.rank_lock:
                         self.ranks.setdefault(k, {})["val"] = summ
                         save_json(RANK_FILE, self.ranks)
@@ -1777,15 +1840,30 @@ class App(tk.Tk):
                     time.sleep(2)
             if not rid:
                 return
+            region = None
+            try:
+                region = (rc.get("/riotclient/region-locale").get("region") or "").upper() or None
+            except Exception:
+                pass
+            acc = None
             with self.rank_lock:
                 for a in self.accounts:
-                    if self.key_of(a) == user_key and a.get("riot_id") != rid:
-                        a["riot_id"] = rid  # yeni ya da değişmiş isim
-                        save_json(DATA_FILE, self.accounts)
+                    if self.key_of(a) == user_key:
+                        acc = a
+                        changed = False
+                        if a.get("riot_id") != rid:
+                            a["riot_id"] = rid  # yeni ya da değişmiş isim
+                            changed = True
+                        if region and not a.get("region_manual") and a.get("region") != region:
+                            a["region"] = region  # bölge otomatik bulundu
+                            changed = True
+                        if changed:
+                            save_json(DATA_FILE, self.accounts)
             name, tag = split_riot_id(rid)
             played = self.settings.get("played", {}).get(user_key, time.time())
             try:
-                summ = summarize_val(fetch_val_rank(self.settings.get("region", "eu"), name, tag, f"p{int(played)}"))
+                reg = affinity_of(acc or {}, self.settings.get("region", "eu"))
+                summ = summarize_val(fetch_val_rank(reg, name, tag, f"p{int(played)}"))
                 with self.rank_lock:
                     self.ranks.setdefault(user_key, {})["val"] = summ
                     save_json(RANK_FILE, self.ranks)
@@ -1915,8 +1993,9 @@ class App(tk.Tk):
             self.game.set(self.accounts[i]["game"])
 
     def quick(self, i):
-        if i < len(self.accounts):
-            self.select(i)
+        order = [r[0] for r in self.row_widgets]
+        if i < len(order):
+            self.select(order[i])
             self.choose()
 
     # ------------------------------------------------------------ oyun
@@ -2110,7 +2189,7 @@ class App(tk.Tk):
         self.after(500, self.finish_when_done)
 
     # ----------------------------------------------------------- hesaplar
-    def dialog(self, parent, title, name="", user="", pw="", rid=""):
+    def dialog(self, parent, title, name="", user="", pw="", rid="", region=""):
         """Hesap ekleme/düzenleme penceresi: ana pencerenin ortasında, koyu temada."""
         win = tk.Toplevel(parent)
         win.withdraw()
@@ -2147,16 +2226,44 @@ class App(tk.Tk):
 
                 eye.bind("<Button-1>", flip)
             vars_.append(v)
-        tk.Label(body, text=t("rid_hint"), bg=BG, fg=MUTED, font=("Segoe UI", 8), wraplength=340,
-                 justify="left").grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 12))
+        # Bölge: Otomatik (ilk girişte bulunur) ya da elle
+        tk.Label(body, text=t("f_region"), bg=BG, fg=MUTED, font=("Segoe UI", 9)).grid(row=5, column=0, sticky="w",
+                                                                                     pady=5, padx=(0, 12))
+        regv = tk.StringVar(value=region or "")
+        track = RoundBox(body, r=9, fill=SEG_BG, border=LINE, padx=3, pady=3)
+        track.grid(row=5, column=1, columnspan=2, sticky="w", pady=5)
+        pills = {}
+
+        def paint_regions():
+            for code, (pb, lb) in pills.items():
+                sel = code == regv.get()
+                fill = TAB_SEL if sel else SEG_BG
+                pb.paint(fill=fill, border=ACC if sel else fill, outer=SEG_BG)
+                lb.config(fg=FG if sel else MUTED)
+
+        for code, label in [("", t("auto"))] + [(c.upper(), c.upper()) for c in REGIONS]:
+            pb = RoundBox(track.body, r=7, fill=SEG_BG, outer=SEG_BG, cursor="hand2")
+            pb.pack(side="left", padx=1)
+            lb = pb.add(tk.Label(pb.body, text=label, bg=SEG_BG, font=("Segoe UI", 8, "bold"), padx=6, pady=2,
+                                 cursor="hand2"))
+            lb.pack()
+            pb.bind_parts("<Button-1>", lambda e, c=code: (regv.set(c), paint_regions()))
+            pills[code] = (pb, lb)
+        # otomatik bulunmuş bir bölge varsa (TR, EUW...) "Otomatik" seçili görünür
+        if regv.get() and regv.get() not in pills:
+            regv.set("")
+        paint_regions()
+        tk.Label(body, text=t("rid_hint") + " " + t("region_auto_hint"), bg=BG, fg=MUTED, font=("Segoe UI", 8),
+                 wraplength=360, justify="left").grid(row=6, column=0, columnspan=3, sticky="w", pady=(2, 12))
         result = {}
 
         def ok(_=None):
-            result["v"] = [vars_[0].get().strip(), vars_[1].get().strip(), vars_[2].get(), vars_[3].get().strip()]
+            result["v"] = [vars_[0].get().strip(), vars_[1].get().strip(), vars_[2].get(), vars_[3].get().strip(),
+                           regv.get()]
             win.destroy()
 
         btns = tk.Frame(body, bg=BG)
-        btns.grid(row=6, column=0, columnspan=3, sticky="e")
+        btns.grid(row=7, column=0, columnspan=3, sticky="e")
         self.pill(btns, t("cancel"), win.destroy, kind="ghost", padx=14, pady=5).pack(side="left", padx=(0, 8))
         self.pill(btns, t("save"), ok, kind="primary", padx=16, pady=5).pack(side="left")
         win.bind("<Return>", ok)
@@ -2176,7 +2283,10 @@ class App(tk.Tk):
     def add_account(self):
         r = self.dialog(self, t("add_t"))
         if r and r[1] and r[2]:
-            self.accounts.append({"name": r[0] or r[1], "user": r[1], "pw": encrypt(r[2]), "riot_id": r[3]})
+            acc = {"name": r[0] or r[1], "user": r[1], "pw": encrypt(r[2]), "riot_id": r[3]}
+            if r[4]:
+                acc["region"], acc["region_manual"] = r[4], True
+            self.accounts.append(acc)
             save_json(DATA_FILE, self.accounts)
             self.refresh()
             self.select(len(self.accounts) - 1)
@@ -2188,9 +2298,16 @@ class App(tk.Tk):
             pw = decrypt(a["pw"])
         except OSError:
             pw = ""
-        r = self.dialog(self, t("edit_t"), a["name"], a["user"], pw, a.get("riot_id", ""))
+        r = self.dialog(self, t("edit_t"), a["name"], a["user"], pw, a.get("riot_id", ""),
+                        a.get("region", "") if a.get("region_manual") else "")
         if r and r[1] and r[2]:
-            self.accounts[i] = {**a, "name": r[0] or r[1], "user": r[1], "pw": encrypt(r[2]), "riot_id": r[3]}
+            new = {**a, "name": r[0] or r[1], "user": r[1], "pw": encrypt(r[2]), "riot_id": r[3]}
+            if r[4]:
+                new["region"], new["region_manual"] = r[4], True
+            elif a.get("region_manual"):
+                new.pop("region", None)  # Otomatik'e döndü: bir sonraki girişte yeniden bulunur
+                new.pop("region_manual", None)
+            self.accounts[i] = new
             save_json(DATA_FILE, self.accounts)
             self.refresh()
             self.select(i)
@@ -2216,6 +2333,8 @@ class App(tk.Tk):
         m = tk.Menu(self, tearoff=0, bg=PANEL, fg=FG, activebackground=SEL, activeforeground=FG,
                     bd=0, relief="flat", font=("Segoe UI", 9))
         m.add_command(label=t("b_edit"), command=lambda: self.edit_account(i))
+        pinned = bool(self.accounts[i].get("pinned"))
+        m.add_command(label=t("unpin") if pinned else t("pin"), command=lambda: self.toggle_pin(i))
         m.add_command(label=t("move_up"), command=lambda: self.move_account(i, -1),
                       state="normal" if i > 0 else "disabled")
         m.add_command(label=t("move_down"), command=lambda: self.move_account(i, 1),
@@ -2226,6 +2345,13 @@ class App(tk.Tk):
             m.tk_popup(event.x_root, event.y_root)
         finally:
             m.grab_release()
+
+    def toggle_pin(self, i):
+        a = self.accounts[i]
+        a["pinned"] = not a.get("pinned")
+        save_json(DATA_FILE, self.accounts)
+        self.refresh()
+        self.select(i, user=False)
 
     def decay_days(self, a):
         """Diamond ve üstü LoL hesabı 21+ gündür Gemlock ile oynanmadıysa gün sayısı, değilse 0."""
@@ -2264,6 +2390,20 @@ class App(tk.Tk):
 
         def button(parent, text, cmd, primary=False):
             return self.pill(parent, text, cmd, kind="accent" if primary else "ghost")
+
+        # Hesap listesi
+        lb_ = section(t("sec_list"))
+        row = tk.Frame(lb_, bg=PANEL)
+        row.pack(fill="x")
+
+        def sort_toggled(on):
+            self.settings["sort_by_game"] = on
+            save_json(SETTINGS_FILE, self.settings)
+
+        Toggle(row, self.settings.get("sort_by_game", True), sort_toggled).pack(side="left")
+        tk.Label(row, text=t("sort_game"), bg=PANEL, fg=FG, font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
+        tk.Label(lb_, text=t("sort_hint"), bg=PANEL, fg=MUTED, font=("Segoe UI", 8), wraplength=560,
+                 justify="left").pack(anchor="w", pady=(6, 0))
 
         # Valorant
         vb = section(t("sec_val"))
@@ -2306,7 +2446,7 @@ class App(tk.Tk):
             self.hide_settings()
 
         button(row, t("refresh_ranks"), refresh_now).pack(side="right")
-        tk.Label(vb, text=t("region_hint") + "  " + t("val_nokey"), bg=PANEL, fg=MUTED, font=("Segoe UI", 8),
+        tk.Label(vb, text=t("region_auto_hint") + "  " + t("val_nokey"), bg=PANEL, fg=MUTED, font=("Segoe UI", 8),
                  wraplength=560, justify="left").pack(anchor="w", pady=(8, 0))
 
         # Uygulama

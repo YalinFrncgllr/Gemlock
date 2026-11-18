@@ -1,7 +1,7 @@
 {
-  "version": "2.0.0",
+  "version": "2.1.0",
   "file": "gemlock.pyw",
-  "sha256": "0237ea36adeb033674f1dafc6091224c106ae407f9df418838c2870ae23a0c16",
-  "notes": "Yeni görünüm: Obsidian tarzı nötr griler ve buz mavisi vurgu, yuvarlak köşeler, tek ana buton, kırmızı ve ayrı Sil butonu, yeni oyun sekmeleri ('Sadece Client' ayrı), 'Giriş yapılıyor…' durumu.",
-  "notes_en": "New look: Obsidian-style neutral grays with an ice-blue accent, rounded corners, a single main button, a red and separate Delete button, new game tabs ('Client only' set apart), and a 'Logging in…' state."
+  "sha256": "826d3bc2e07d78730ae4b40820a48084ebff640e59307b8cf8567ab999733f70",
+  "notes": "Her hesabın bölgesi ilk girişte otomatik bulunuyor (elle de seçilebilir), isimlerin yanında bölge etiketi, seçili oyunun sütunu öne çıkıyor, seçili oyuna göre sıralama, hesap sabitleme (sağ tık).",
+  "notes_en": "Each account's region is detected on first login (or set manually), region tags next to names, the selected game's column is highlighted, sorting by the selected game, and pinning accounts (right-click)."
 }
