@@ -1,5 +1,5 @@
 """
-Gemlock 1.2.0 — Riot hesap yöneticisi
+Gemlock 1.2.1 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -35,7 +35,7 @@ INSTALL_DIR = os.path.join(os.environ.get("LOCALAPPDATA", APPDATA), "Gemlock")
 INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_REFRESH_SEC = 10 * 60  # Valorant rank'ı en fazla 10 dakikada bir yenilenir
-VERSION = "1.2.0"
+VERSION = "1.2.1"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -133,6 +133,25 @@ def type_text(text: str, delay=0.01):
         _send(scan=code, flags=KEYEVENTF_UNICODE)
         _send(scan=code, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)
         time.sleep(delay)
+
+
+def is_front(hwnd):
+    """Klavyenin şu an gerçekten bu pencereye gidip gitmediğini kontrol eder."""
+    fg = user32.GetForegroundWindow()
+    return bool(fg) and (fg == hwnd or user32.GetAncestor(fg, 3) == hwnd)  # GA_ROOTOWNER
+
+
+def type_text_safe(text, hwnd, delay=0.01):
+    """Her harften önce Riot'un hâlâ önde olduğunu kontrol eder; değilse durur.
+    Böylece şifre yanlışlıkla Discord gibi başka bir pencereye yazılmaz."""
+    for ch in text:
+        if not is_front(hwnd):
+            return False
+        code = ord(ch)
+        _send(scan=code, flags=KEYEVENTF_UNICODE)
+        _send(scan=code, flags=KEYEVENTF_UNICODE | KEYEVENTF_KEYUP)
+        time.sleep(delay)
+    return True
 
 
 def select_all():
@@ -1046,19 +1065,40 @@ class App(tk.Tk):
         self.logged_in = True
         self.withdraw()
         time.sleep(0.25)
-        if user32.IsIconic(hwnd):
-            user32.ShowWindow(hwnd, 9)
-        user32.SetForegroundWindow(hwnd)
-        time.sleep(0.5)
-        select_all()
-        type_text(a["user"])
-        press(VK_TAB)
-        time.sleep(0.1)
-        select_all()
-        type_text(pw)
-        time.sleep(0.15)
-        press(VK_RETURN)
+        for _ in range(4):  # Riot'u öne getir, gerçekten öne geldiğinden emin ol
+            if user32.IsIconic(hwnd):
+                user32.ShowWindow(hwnd, 9)
+            bring_to_front(hwnd)
+            time.sleep(0.35)
+            if is_front(hwnd):
+                break
+
+        ok = is_front(hwnd)
+        if ok:
+            select_all()
+            ok = type_text_safe(a["user"], hwnd)
+        if ok and is_front(hwnd):
+            press(VK_TAB)
+            time.sleep(0.1)
+            ok = is_front(hwnd)
+            if ok:
+                select_all()
+                ok = type_text_safe(pw, hwnd)
+        if ok and is_front(hwnd):
+            time.sleep(0.15)
+            press(VK_RETURN)
         pw = None
+        if not ok:
+            # güvenlik: Riot önde değilse hiçbir şey göndermeden geri dön
+            self.logged_in = False
+            self.pending = None
+            self.deiconify()
+            messagebox.showwarning(
+                "Giriş durduruldu",
+                "Riot Client öne gelmediği için güvenlik amacıyla şifre yazılmadı.\n"
+                "Riot penceresine bir kez tıklayıp tekrar 'Giriş yap'a bas.", parent=self)
+            self.after(300, self.tick)
+            return
 
         product = self.game.get()
         exe = find_riot_exe()

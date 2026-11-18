@@ -1,6 +1,6 @@
 {
-  "version": "1.2.0",
+  "version": "1.2.1",
   "file": "gemlock.pyw",
-  "sha256": "329e8b21d0270e1ad64c693451eb708d236503097c608c4f676fcf863f8bc88e",
-  "notes": "Elmas Gece teması, LoL'de Solo/Duo rank, oyuna göre Riot Client, otomatik güncelleme."
+  "sha256": "d1d5c7f9bec49685c977881ed3166f372fc41c107b4d9708add8d9e720fea24d",
+  "notes": "Güvenlik: şifre artık sadece Riot Client öndeyse yazılıyor; başka pencereye yazılması engellendi."
 }
