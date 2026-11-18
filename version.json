@@ -1,7 +1,7 @@
 {
-  "version": "1.8.0",
+  "version": "1.8.1",
   "file": "gemlock.pyw",
-  "sha256": "e1ed70ddc7e84b12cb7309446bfdb1e590af7b29f4e5a99da00a3b0e042a4409",
-  "notes": "Ayarlar artık aynı pencerede açılıyor; hesaplar listeden sağ tıkla yönetiliyor, '+ Hesap ekle' butonu eklendi. Tek tıkla hesap değiştirme ve LoL düşüş uyarısı.",
-  "notes_en": "Settings now open in the same window; manage accounts by right-clicking them, plus an '+ Add account' button. One-click account switching and a LoL decay warning."
+  "sha256": "0ecc46eef3d3a4a2e504fc47faf4f939a5c369e7721bdcd66f5e7982e0f0feb3",
+  "notes": "Riot Client gibi kendi başlık çubuğu (sadece – ve ✕), listenin altında görünür Düzenle / Sil / ↑ / ↓ butonları, Blitz seçeneği tekrar ana ekranda.",
+  "notes_en": "Riot-style title bar (only – and ✕), visible Edit / Delete / ↑ / ↓ buttons under the list, Blitz option back on the main screen."
 }
