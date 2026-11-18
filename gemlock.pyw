@@ -36,7 +36,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_REFRESH_SEC = 10 * 60  # Valorant rank'ı en fazla 10 dakikada bir yenilenir
 VERSION = "1.2.0"
-UPDATE_REPO = "YalinFrncgllr/gemlock"  # herkese açık depo; güncellemeler buradan gelir
+UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
