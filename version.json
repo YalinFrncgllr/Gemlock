@@ -1,7 +1,7 @@
 {
-  "version": "1.9.1",
+  "version": "2.0.0",
   "file": "gemlock.pyw",
-  "sha256": "d47d20bb6d4d65b5b101d39586e3a51e1bc6fe0274b42abb5933c81e1a3db641",
-  "notes": "Açma/kapama anahtarı artık pürüzsüz, şifre alanında Göster/Gizle.",
-  "notes_en": "The on/off switch is now smooth; the password field has Show/Hide."
+  "sha256": "0237ea36adeb033674f1dafc6091224c106ae407f9df418838c2870ae23a0c16",
+  "notes": "Yeni görünüm: Obsidian tarzı nötr griler ve buz mavisi vurgu, yuvarlak köşeler, tek ana buton, kırmızı ve ayrı Sil butonu, yeni oyun sekmeleri ('Sadece Client' ayrı), 'Giriş yapılıyor…' durumu.",
+  "notes_en": "New look: Obsidian-style neutral grays with an ice-blue accent, rounded corners, a single main button, a red and separate Delete button, new game tabs ('Client only' set apart), and a 'Logging in…' state."
 }

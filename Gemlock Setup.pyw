@@ -1,5 +1,5 @@
 """
-Gemlock 1.9.1 — Riot hesap yöneticisi
+Gemlock 2.0.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -11,6 +11,7 @@ Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstün
   Program bu verileri hiçbir yere göndermez; kodu indiren biri boş bir liste görür.
 """
 import base64
+import math
 import ctypes
 import json
 import os
@@ -47,7 +48,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.9.1"
+VERSION = "2.0.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -486,7 +487,7 @@ STR = {
         "upd_now": "Check now", "sc_ok_t": "Done", "sc_ok": "A 'Gemlock' shortcut was created on your desktop.",
         "sc_fail": "Could not create the shortcut.", "sc_btn": "Create desktop shortcut",
         "dpapi": "Could not decrypt (it may belong to another Windows user)",
-        "add_account": "+  Add account", "minimize": "Minimize", "close": "Close", "show": "Show", "hide": "Hide", "settings": "Settings", "back": "←  Back", "sec_general": "General",
+        "add_account": "+  Add account", "logging_in": "Logging in…", "minimize": "Minimize", "close": "Close", "show": "Show", "hide": "Hide", "settings": "Settings", "back": "←  Back", "sec_general": "General",
         "sec_val": "Valorant ranks", "refresh_ranks": "Refresh ranks now", "sec_app": "App", "sec_data": "Your data",
         "data_info": "Accounts and passwords are stored only on this PC, encrypted by Windows. Nothing is uploaded.",
         "open_folder": "Open data folder", "move_up": "Move up", "move_down": "Move down", "cancel": "Cancel",
@@ -525,7 +526,7 @@ STR = {
         "upd_now": "Şimdi kontrol et", "sc_ok_t": "Tamam", "sc_ok": "Masaüstüne 'Gemlock' kısayolu oluşturuldu.",
         "sc_fail": "Kısayol oluşturulamadı.", "sc_btn": "Masaüstüne simgeli kısayol oluştur",
         "dpapi": "Şifre çözülemedi (başka bir Windows kullanıcısına ait olabilir)",
-        "add_account": "+  Hesap ekle", "minimize": "Küçült", "close": "Kapat", "show": "Göster", "hide": "Gizle", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
+        "add_account": "+  Hesap ekle", "logging_in": "Giriş yapılıyor…", "minimize": "Küçült", "close": "Kapat", "show": "Göster", "hide": "Gizle", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
         "sec_val": "Valorant rank'ları", "refresh_ranks": "Rank'ları şimdi yenile", "sec_app": "Uygulama",
         "sec_data": "Verilerin",
         "data_info": "Hesapların ve şifrelerin sadece bu bilgisayarda, Windows şifrelemesiyle saklanıyor. Hiçbir yere yüklenmez.",
@@ -882,9 +883,13 @@ except Exception:
     pass
 
 # Elmas Gece teması
-BG, PANEL, FG, MUTED = "#0f1420", "#151c2b", "#e6edf5", "#7f8ca1"
-LINE, ROW_LINE, SEL, SEG_BG = "#232d40", "#1b2333", "#1c2740", "#0b101a"
-ACC, ACC_HOVER, ON_ACC, TITLE = "#bfe3f7", "#d6eefb", "#0c1624", "#0b0f18"
+# Obsidian + buz mavisi teması (nötr griler, tek vurgu rengi)
+BG, PANEL, FG, MUTED = "#1e1e1e", "#262626", "#dadada", "#999999"
+LINE, ROW_LINE, SEL, SEG_BG = "#363636", "#2c2c2c", "#2f2f2f", "#161616"
+ACC, ACC_HOVER, ON_ACC, TITLE = "#8ccbee", "#a3d6f2", "#0c1624", "#181818"
+BTN_BORDER, HOVER, KBD, TAB_SEL = "#3f3f3f", "#2c2c2c", "#363636", "#363636"
+DANGER, DANGER_BORDER, DANGER_HOVER, WARN = "#f87171", "#4a2a2a", "#2a1d1d", "#e0a458"
+ACC_BUSY, KBD_ON_ACC = "#6d8fa3", "#74b3d6"
 ACCENT = ACC
 def fit_text(text, font, px):
     """Metni verilen piksel genişliğe sığdırır, sığmazsa sonuna … koyar."""
@@ -975,6 +980,109 @@ class Toggle(tk.Label):
     def toggle(self):
         self.set(not self.on)
         self.command(self.on)
+
+
+_CORNER_CACHE = {}
+
+
+def _rgb(c):
+    return tuple(int(c[i:i + 2], 16) for i in (1, 3, 5))
+
+
+def corner_image(r, fill, border, outer, corner):
+    """Kenarı yumuşatılmış köşe görseli (çalışırken çizilir, aynı renkler için önbelleklenir)."""
+    key = (r, fill, border, outer, corner)
+    if key in _CORNER_CACHE:
+        return _CORNER_CACHE[key]
+    f, b, o = _rgb(fill), _rgb(border), _rgb(outer)
+    n = 4
+    rows = []
+    for y in range(r):
+        row = []
+        for x in range(r):
+            nf = nb = no = 0
+            for sy in range(n):
+                for sx in range(n):
+                    d = math.hypot(r - (x + (sx + .5) / n), r - (y + (sy + .5) / n))
+                    if d > r:
+                        no += 1
+                    elif d > r - 1:
+                        nb += 1
+                    else:
+                        nf += 1
+            tot = n * n
+            row.append("#%02x%02x%02x" % tuple(round((f[i] * nf + b[i] * nb + o[i] * no) / tot) for i in range(3)))
+        rows.append(row)
+    if corner in ("tr", "br"):
+        rows = [list(reversed(rw)) for rw in rows]
+    if corner in ("bl", "br"):
+        rows = list(reversed(rows))
+    img = tk.PhotoImage(width=r, height=r)
+    img.put(" ".join("{" + " ".join(rw) + "}" for rw in rows))
+    _CORNER_CACHE[key] = img
+    return img
+
+
+class RoundBox(tk.Frame):
+    """Yuvarlak köşeli, isteğe bağlı 1 px kenarlıklı kutu. İçerik .body'ye konur; renkleri paint() ile değişir."""
+
+    def __init__(self, parent, r=8, fill=PANEL, border=None, outer=None, padx=0, pady=0, cursor=""):
+        self.r, self.fill = r, fill
+        self.border = border or fill
+        self.outer = outer or parent.cget("bg")
+        super().__init__(parent, bg=fill, cursor=cursor)
+        self.body = tk.Frame(self, bg=fill, cursor=cursor)
+        self.body.pack(fill="both", expand=True, padx=max(1, padx), pady=max(1, pady))
+        self.members = []
+        self.lines = [tk.Frame(self, bg=self.border) for _ in range(4)]
+        top, bot, left, right = self.lines
+        top.place(x=r, y=0, relwidth=1, width=-2 * r, height=1)
+        bot.place(x=r, rely=1, y=-1, relwidth=1, width=-2 * r, height=1)
+        left.place(x=0, y=r, relheight=1, height=-2 * r, width=1)
+        right.place(relx=1, x=-1, y=r, relheight=1, height=-2 * r, width=1)
+        self.corners = {}
+        for c, (rx, ry, x, y) in {"tl": (0, 0, 0, 0), "tr": (1, 0, -r, 0),
+                                  "bl": (0, 1, 0, -r), "br": (1, 1, -r, -r)}.items():
+            lb = tk.Label(self, bd=0, highlightthickness=0, padx=0, pady=0, bg=self.outer, cursor=cursor)
+            lb.place(relx=rx, rely=ry, x=x, y=y, width=r, height=r)
+            self.corners[c] = lb
+        # İç boşluk yeterliyse içerik köşelerin üstünde durur; böylece iç içe kutularda dış köşe
+        # içteki kutunun köşesini örtmez (iç dikdörtgen, dış yuvarlağın tamamen içinde kalır).
+        p = padx if isinstance(padx, int) else min(padx)
+        q = pady if isinstance(pady, int) else min(pady)
+        if min(p, q) >= math.ceil(0.3 * r):
+            self.body.lift()
+        self.paint()
+
+    def add(self, w):
+        self.members.append(w)
+        return w
+
+    def paint(self, fill=None, border=None, outer=None):
+        if fill:
+            self.fill = fill
+        if border:
+            self.border = border
+        if outer:
+            self.outer = outer
+        self.config(bg=self.fill)
+        self.body.config(bg=self.fill)
+        for ln in self.lines:
+            ln.config(bg=self.border)
+        for c, lb in self.corners.items():
+            lb.config(image=corner_image(self.r, self.fill, self.border, self.outer, c))
+        for m in self.members:
+            try:
+                m.config(bg=self.fill)
+            except tk.TclError:
+                pass
+
+    def parts(self):
+        return [self, self.body, *self.lines, *self.corners.values(), *self.members]
+
+    def bind_parts(self, seq, fn):
+        for w in self.parts():
+            w.bind(seq, fn)
 
 
 def dark_titlebar(win):
@@ -1102,30 +1210,37 @@ class App(tk.Tk):
         root.pack(fill="both", expand=True)
         self.settings_view = None
 
-        seg = tk.Frame(root, bg=SEG_BG, padx=3, pady=3)
-        seg.pack(fill="x", padx=12, pady=(12, 6))
+        # Oyun seçimi: Valorant · LoL · TFT tek parça; "Sadece Client" ayrı (oyun değil, farklı seçenek)
+        top = tk.Frame(root, bg=BG)
+        top.pack(fill="x", padx=12, pady=(12, 8))
+        track = RoundBox(top, r=10, fill=SEG_BG, border=LINE, padx=3, pady=3)
+        track.pack(side="left", fill="x", expand=True)
         self.game_btns = {}
         for code, label in GAMES:
-            b = tk.Label(seg, text=label or t("client_only"), bg=SEG_BG, fg=MUTED, font=("Segoe UI", 9, "bold"),
-                         pady=6, cursor="hand2")
-            b.pack(side="left", expand=True, fill="x", padx=1)
-            b.bind("<Button-1>", lambda e, c=code: self.set_game(c))
-            self.game_btns[code] = b
+            if not code:
+                continue
+            tab = RoundBox(track.body, r=7, fill=SEG_BG, outer=SEG_BG, cursor="hand2")
+            tab.pack(side="left", fill="x", expand=True, padx=1)
+            lb = tab.add(tk.Label(tab.body, text=label, bg=SEG_BG, fg=MUTED, font=("Segoe UI", 9, "bold"),
+                                  pady=6, cursor="hand2"))
+            lb.pack(fill="x")
+            line = tk.Frame(tab.body, bg=SEG_BG, height=2)
+            line.pack(fill="x", side="bottom", padx=10)
+            tab.bind_parts("<Button-1>", lambda e, c=code: self.set_game(c))
+            self.game_btns[code] = (tab, lb, line)
+        solo = self.pill(top, t("client_only"), lambda: self.set_game(""), kind="ghost", padx=14, pady=6)
+        solo.pack(side="left", padx=(10, 0))
+        self.game_btns[""] = (solo, solo.label, None)
 
-        self.blitz_box = tk.Frame(root, bg=BG)
+        row1 = tk.Frame(root, bg=BG)
+        row1.pack(fill="x", padx=14)
+        self.blitz_box = tk.Frame(row1, bg=BG)
         self.blitz_switch = Toggle(self.blitz_box, self.blitz_on(), self.blitz_toggled)
         self.blitz_switch.pack(side="left")
         lb = tk.Label(self.blitz_box, text=t("blitz"), bg=BG, fg=FG, font=("Segoe UI", 9), cursor="hand2")
         lb.pack(side="left", padx=(8, 0))
         lb.bind("<Button-1>", lambda e: self.blitz_switch.toggle())
-        st_row = tk.Frame(root, bg=BG)
-        st_row.pack(fill="x", padx=12, pady=(2, 6))
-        self.status_dot = tk.Label(st_row, text="●", bg=BG, fg=ACC, font=("Segoe UI", 7))
-        self.status_dot.pack(side="left")
-        self.status = tk.Label(st_row, text=self.status_text, bg=BG, fg=MUTED, font=("Segoe UI", 9), anchor="w")
-        self.status.pack(side="left", padx=(4, 0))
-        # dil seçimi (EN · TR)
-        langs = tk.Frame(st_row, bg=BG)
+        langs = tk.Frame(row1, bg=BG)
         langs.pack(side="right")
         for i, code in enumerate(("en", "tr")):
             if i:
@@ -1134,62 +1249,125 @@ class App(tk.Tk):
                           font=("Segoe UI", 8, "bold" if LANG == code else "normal"), cursor="hand2", padx=2)
             lb.pack(side="left")
             lb.bind("<Button-1>", lambda e, c=code: self.set_lang(c))
+        self.blitz_row = row1
+
+        st_row = tk.Frame(root, bg=BG)
+        st_row.pack(fill="x", padx=14, pady=(4, 6))
+        self.status_dot = tk.Label(st_row, text="●", bg=BG, fg=ACC, font=("Segoe UI", 7))
+        self.status_dot.pack(side="left")
+        self.status = tk.Label(st_row, text=self.status_text, bg=BG, fg=MUTED, font=("Segoe UI", 9), anchor="w")
+        self.status.pack(side="left", padx=(4, 0))
         self.status_row = st_row
 
-        box = tk.Frame(root, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        box = RoundBox(root, r=10, fill=PANEL, border=LINE, padx=1, pady=(1))
         box.pack(padx=12, fill="x")
-        head = tk.Frame(box, bg=PANEL)
+        head = tk.Frame(box.body, bg=PANEL)
         head.pack(fill="x")
         hdr = [(COL_W["bar"] + COL_W["num"], ""), (COL_W["name"], t("h_account")),
                (COL_W["vi"] + COL_W["vt"], "VALORANT"), (COL_W["li"] + COL_W["lt"], "LOL"),
                (COL_W["ti"] + COL_W["tt"], "TFT")]
         for w, txt in hdr:
-            c = tk.Frame(head, bg=PANEL, width=w, height=26)
+            c = tk.Frame(head, bg=PANEL, width=w, height=28)
             c.pack(side="left")
             c.pack_propagate(False)
             tk.Label(c, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w").pack(
                 fill="both", expand=True, padx=(2, 0))
-        tk.Frame(box, bg=LINE, height=1).pack(fill="x")
-        self.rows_frame = tk.Frame(box, bg=PANEL)
+        tk.Frame(box.body, bg=LINE, height=1).pack(fill="x")
+        self.rows_frame = tk.Frame(box.body, bg=PANEL)
         self.rows_frame.pack(fill="x")
+        tk.Frame(box.body, bg=PANEL, height=8).pack(fill="x")  # alt köşe payı
         self.row_widgets = []
+
         tools = tk.Frame(root, bg=BG)
-        tools.pack(fill="x", padx=12, pady=(8, 0))
-        self.tool_button(tools, t("add_account"), self.add_account, primary=True).pack(side="left")
+        tools.pack(fill="x", padx=12, pady=(10, 0))
+        self.pill(tools, t("add_account"), self.add_account, kind="accent").pack(side="left")
+        # Sil: kırmızı ve diğerlerinden ayrı (skill: destructive-emphasis)
+        self.pill(tools, t("b_del"), lambda: self.sel_index is not None and self.delete_account(self.sel_index),
+                  kind="danger").pack(side="right", padx=(12, 0))
         for txt, cmd in (("↓", lambda: self.sel_index is not None and self.move_account(self.sel_index, 1)),
                          ("↑", lambda: self.sel_index is not None and self.move_account(self.sel_index, -1)),
-                         (t("b_del"), lambda: self.sel_index is not None and self.delete_account(self.sel_index)),
                          (t("b_edit"), lambda: self.sel_index is not None and self.edit_account(self.sel_index))):
-            self.tool_button(tools, txt, cmd).pack(side="right", padx=(6, 0))
+            self.pill(tools, txt, cmd).pack(side="right", padx=(6, 0))
 
         det = tk.Frame(root, bg=BG)
-        det.pack(fill="x", padx=12, pady=(8, 0))
+        det.pack(fill="x", padx=14, pady=(10, 0))
         self.detail_id = tk.Label(det, text="", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w")
         self.detail_id.pack(fill="x")
         self.detail = tk.Label(det, text="", bg=BG, fg=MUTED, font=("Segoe UI", 9), justify="left",
                                anchor="w", wraplength=sum(COL_W.values()) - 8)
         self.detail.pack(fill="x")
 
+        # Tek ana buton: Giriş yap (skill: primary-action)
         bar = tk.Frame(root, bg=BG)
-        bar.pack(fill="x", padx=12, pady=(10, 6))
-        go = tk.Label(bar, text=t("login"), bg=ACC, fg=ON_ACC, font=("Segoe UI", 10, "bold"), pady=8, cursor="hand2")
+        bar.pack(fill="x", padx=12, pady=(12, 6))
+        self.go_box = go = RoundBox(bar, r=10, fill=ACC, cursor="hand2")
         go.pack(side="left", expand=True, fill="x")
-        go.bind("<Button-1>", lambda e: self.choose())
-        go.bind("<Enter>", lambda e: go.config(bg=ACC_HOVER))
-        go.bind("<Leave>", lambda e: go.config(bg=ACC))
-        cog = tk.Label(bar, text="⚙", bg=PANEL, fg=MUTED, font=("Segoe UI", 11), width=3, cursor="hand2",
-                       highlightthickness=1, highlightbackground=LINE)
-        cog.pack(side="left", padx=(6, 0), fill="y")
-        cog.bind("<Button-1>", lambda e: self.show_settings())
-        tk.Label(root, text=t("keys"), bg=BG, fg=MUTED, font=("Segoe UI", 8)).pack(pady=(0, 10))
+        inner = go.add(tk.Frame(go.body, bg=ACC, cursor="hand2"))
+        inner.pack(pady=7)
+        self.go_label = go.add(tk.Label(inner, text=t("login"), bg=ACC, fg=ON_ACC, font=("Segoe UI", 10, "bold"),
+                                        cursor="hand2"))
+        self.go_label.pack(side="left")
+        self.go_kbd = RoundBox(inner, r=4, fill=KBD_ON_ACC, outer=ACC, cursor="hand2")
+        self.go_kbd.pack(side="left", padx=(8, 0))
+        self.go_kbd.add(tk.Label(self.go_kbd.body, text="Enter", bg=KBD_ON_ACC, fg=ON_ACC,
+                                 font=("Segoe UI", 7, "bold"), padx=5, cursor="hand2")).pack()
+        self._go_busy = None
+        for w in go.parts() + self.go_kbd.parts():
+            w.bind("<Button-1>", lambda e: self.choose())
+            w.bind("<Enter>", lambda e: self.paint_go(hover=True))
+            w.bind("<Leave>", lambda e: self.paint_go(hover=False))
+        cog = self.pill(bar, "⚙", self.show_settings, padx=10, pady=5, font=("Segoe UI", 11), r=10)
+        cog.pack(side="left", padx=(8, 0), fill="y")
+        tk.Label(root, text=t("keys"), bg=BG, fg=MUTED, font=("Segoe UI", 8)).pack(pady=(2, 10))
 
         self.paint_games()
+        self.paint_go()
         self.update_blitz_box()
         cur = self.sel_index
         self.sel_index = None
         self.refresh(select_last=cur is None)
         if cur is not None:
             self.select(cur, user=False)
+
+    def pill(self, parent, text, cmd, kind="ghost", padx=12, pady=4, font=None, r=None):
+        """Hap şeklinde buton. kind: ghost (kenarlıklı), accent (vurgu yazılı), danger (kırmızı), primary (dolu)."""
+        outer = parent.cget("bg")
+        styles = {
+            "ghost": (outer, BTN_BORDER, FG, HOVER),
+            "accent": (outer, BTN_BORDER, ACC, HOVER),
+            "danger": (outer, DANGER_BORDER, DANGER, DANGER_HOVER),
+            "primary": (ACC, ACC, ON_ACC, ACC_HOVER),
+        }
+        fill, border, fg, hover = styles[kind]
+        font = font or ("Segoe UI", 9, "bold" if kind in ("primary", "accent") else "normal")
+        h = tkfont.Font(font=font).metrics("linespace") + 2 * pady + 2
+        r = r or max(4, h // 2)
+        b = RoundBox(parent, r=r, fill=fill, border=border, outer=outer, cursor="hand2")
+        b.label = b.add(tk.Label(b.body, text=text, bg=fill, fg=fg, font=font, padx=max(padx, r // 2),
+                                 pady=pady, cursor="hand2"))
+        b.label.pack(fill="both", expand=True)
+        b.style = (fill, border, fg, hover)
+        b.bind_parts("<Button-1>", lambda e: cmd())
+        b.bind_parts("<Enter>", lambda e: b.paint(fill=b.style[3]))
+        b.bind_parts("<Leave>", lambda e: b.paint(fill=b.style[0]))
+        return b
+
+    def paint_go(self, hover=None):
+        if not hasattr(self, "go_box"):
+            return
+        if hover is not None:
+            self._go_hover = hover
+        busy = self.pending is not None
+        fill = ACC_BUSY if busy else (ACC_HOVER if getattr(self, "_go_hover", False) else ACC)
+        self.go_box.paint(fill=fill, border=fill)
+        self.go_label.config(text=t("logging_in") if busy else t("login"),
+                             cursor="watch" if busy else "hand2")
+        if busy:
+            self.go_kbd.pack_forget()
+        elif not self.go_kbd.winfo_ismapped():
+            self.go_kbd.pack(side="left", padx=(8, 0))
+        self.go_kbd.paint(outer=fill)
+        self._go_busy = busy
 
     # ------------------------------------------------------------ başlık çubuğu (Riot Client gibi: sadece – ve ✕)
     def build_titlebar(self):
@@ -1254,16 +1432,6 @@ class App(tk.Tk):
     def retitle(self):
         if hasattr(self, "btn_min"):
             self.btn_min_tip = t("minimize")
-
-    def tool_button(self, parent, text, cmd, primary=False):
-        """Buton görünümlü etiket: arka plan, kenarlık ve üzerine gelince renk değişimi."""
-        bg, fg, hover = (SEL, ACC, LINE) if primary else (PANEL, FG, SEL)
-        b = tk.Label(parent, text=text, bg=bg, fg=fg, font=("Segoe UI", 9, "bold" if primary else "normal"),
-                     padx=12, pady=5, cursor="hand2", highlightthickness=1, highlightbackground=LINE)
-        b.bind("<Button-1>", lambda e: cmd())
-        b.bind("<Enter>", lambda e: b.config(bg=hover))
-        b.bind("<Leave>", lambda e: b.config(bg=bg))
-        return b
 
     def set_lang(self, code):
         global LANG
@@ -1332,12 +1500,12 @@ class App(tk.Tk):
             return
         i = max(0, min(i, len(self.accounts) - 1))
         self.sel_index = i
-        for k, (row, bar, cells) in enumerate(self.row_widgets):
+        for k, (row, bar, cells, chip) in enumerate(self.row_widgets):
             bg = SEL if k == i else PANEL
-            row.config(bg=bg)
-            bar.config(bg=ACC if k == i else PANEL)
-            for c in cells:
-                c.config(bg=bg)
+            for w in [row, bar] + cells:
+                w.config(bg=bg)
+            if chip:
+                chip.paint(outer=bg)
         if user:
             self.sync_game()
         self.show_detail()
@@ -1368,19 +1536,23 @@ class App(tk.Tk):
             bar = cell(row, COL_W["bar"])
             cells = []
             c = cell(row, COL_W["num"])
-            num = tk.Label(c, text=str(i + 1) if i < 9 else "", bg=PANEL, fg=MUTED, font=("Segoe UI", 8, "bold"),
-                           anchor="e")
-            num.pack(fill="both", expand=True, padx=(0, 8))
-            cells += [c, num]
+            chip = None
+            if i < 9:
+                chip = RoundBox(c, r=4, fill=KBD, outer=PANEL)
+                chip.add(tk.Label(chip.body, text=str(i + 1), bg=KBD, fg=FG, font=("Segoe UI", 7, "bold"),
+                                  padx=4)).pack()
+                chip.place(relx=1, rely=.5, x=-6, anchor="e")
+            cells += [c]
             c = cell(row, COL_W["name"])
             name = tk.Label(c, text=fit_text(a["name"], name_font, COL_W["name"] - 8), bg=PANEL, fg=FG,
                             font=name_font, anchor="w")
             name.pack(fill="both", expand=True)
             cells += [c, name]
             vr, lr = self.rank_of(a, "val"), self.rank_of(a, "lol")
+            warn = bool(self.decay_days(a))
             for (text, color, ikey), (wi, wt) in (
                     ((val_short(vr, bool(a.get("riot_id"))), val_color(vr), val_icon_key(vr)), ("vi", "vt")),
-                    ((("⚠ " if self.decay_days(a) else "") + lol_short(lr), lol_color(lr), lol_icon_key(lr)), ("li", "lt")),
+                    ((("⚠ " if warn else "") + lol_short(lr), lol_color(lr), lol_icon_key(lr)), ("li", "lt")),
                     ((tft_short(lr), tft_color(lr), tft_icon_key(lr)), ("ti", "tt"))):
                 ci = cell(row, COL_W[wi])
                 img = self.rank_icon(ikey)
@@ -1391,14 +1563,16 @@ class App(tk.Tk):
                 dot.pack(fill="both", expand=True)
                 ct = cell(row, COL_W[wt])
                 lab = tk.Label(ct, text=fit_text(text, small_font, COL_W[wt] - 6), bg=PANEL,
-                               fg=FG if color else MUTED, font=small_font, anchor="w")
+                               fg=WARN if (warn and wt == "lt") else (FG if color else MUTED), font=small_font,
+                               anchor="w")
                 lab.pack(fill="both", expand=True, padx=(2, 0))
                 cells += [ci, dot, ct, lab]
-            for w in [row, bar] + cells:
+            targets = [row, bar] + cells + (chip.parts() if chip else [])
+            for w in targets:
                 w.bind("<Button-3>", lambda e, k=i: self.row_menu(e, k))
                 w.bind("<Button-1>", lambda e, k=i: self.select(k))
                 w.bind("<Double-Button-1>", lambda e, k=i: (self.select(k), self.choose()))
-            self.row_widgets.append((row, bar, cells))
+            self.row_widgets.append((row, bar, cells, chip))
         if self.accounts:
             i = self.settings.get("last", 0) if (select_last or cur is None) else cur
             self.select(i, user=False)
@@ -1525,6 +1699,8 @@ class App(tk.Tk):
 
     def poll_ui(self):
         """Arka plan işlerinden gelen güncellemeleri ana pencereye uygular."""
+        if getattr(self, "_go_busy", None) is not None and self._go_busy != (self.pending is not None):
+            self.paint_go()
         if self.ranks_dirty:
             self.ranks_dirty = False
             self.fetch_icons_async()
@@ -1712,7 +1888,7 @@ class App(tk.Tk):
         if self.game.get():
             self.blitz_switch.set(self.blitz_on(), animate=False)
             if not self.blitz_box.winfo_ismapped():
-                self.blitz_box.pack(anchor="w", padx=14, pady=(2, 4), before=self.status_row)
+                self.blitz_box.pack(side="left")
         else:
             self.blitz_box.pack_forget()
 
@@ -1746,8 +1922,17 @@ class App(tk.Tk):
     # ------------------------------------------------------------ oyun
     def paint_games(self):
         cur = self.game.get()
-        for code, b in self.game_btns.items():
-            b.config(bg=ACC if code == cur else SEG_BG, fg=ON_ACC if code == cur else MUTED)
+        for code, (box, lb, line) in self.game_btns.items():
+            sel = code == cur
+            if code:
+                fill = TAB_SEL if sel else SEG_BG
+                box.paint(fill=fill, border=fill, outer=SEG_BG)
+                lb.config(fg=FG if sel else MUTED)
+                line.config(bg=ACC if sel else fill)
+            else:
+                box.style = (BG, ACC if sel else BTN_BORDER, ACC if sel else MUTED, HOVER)
+                box.paint(fill=BG, border=box.style[1])
+                lb.config(fg=box.style[2])
 
     def set_game(self, code):
         if self.game.get() == code:
@@ -1947,7 +2132,7 @@ class App(tk.Tk):
             v = tk.StringVar(value=val)
             e = tk.Entry(body, textvariable=v, width=30, show="•" if secret else "", bg=PANEL, fg=FG,
                          insertbackground=FG, relief="flat", font=("Segoe UI", 10), highlightthickness=1,
-                         highlightbackground=LINE, highlightcolor=ACC)
+                         highlightbackground=BTN_BORDER, highlightcolor=ACC)
             e.grid(row=r, column=1, sticky="we", pady=5, ipady=4)
             if r == 1:
                 e.focus_set()
@@ -1972,14 +2157,8 @@ class App(tk.Tk):
 
         btns = tk.Frame(body, bg=BG)
         btns.grid(row=6, column=0, columnspan=3, sticky="e")
-        cancel = tk.Label(btns, text=t("cancel"), bg=PANEL, fg=FG, font=("Segoe UI", 9), padx=16, pady=6,
-                          cursor="hand2", highlightthickness=1, highlightbackground=LINE)
-        cancel.pack(side="left", padx=(0, 8))
-        cancel.bind("<Button-1>", lambda e: win.destroy())
-        save = tk.Label(btns, text=t("save"), bg=ACC, fg=ON_ACC, font=("Segoe UI", 9, "bold"), padx=18, pady=6,
-                        cursor="hand2")
-        save.pack(side="left")
-        save.bind("<Button-1>", ok)
+        self.pill(btns, t("cancel"), win.destroy, kind="ghost", padx=14, pady=5).pack(side="left", padx=(0, 8))
+        self.pill(btns, t("save"), ok, kind="primary", padx=16, pady=5).pack(side="left")
         win.bind("<Return>", ok)
         win.bind("<Escape>", lambda e: win.destroy())
         # ana pencerenin ortasına yerleştir
@@ -2072,25 +2251,19 @@ class App(tk.Tk):
 
         top = tk.Frame(v, bg=BG)
         top.pack(fill="x", pady=(0, 10))
-        back = tk.Label(top, text=t("back"), bg=BG, fg=ACC, font=("Segoe UI", 9, "bold"), cursor="hand2")
+        back = self.pill(top, t("back"), self.hide_settings, kind="ghost")
         back.pack(side="left")
-        back.bind("<Button-1>", lambda e: self.hide_settings())
         tk.Label(top, text=t("settings"), bg=BG, fg=FG, font=("Segoe UI", 12, "bold")).pack(side="left", padx=14)
 
         def section(title):
             tk.Label(v, text=title.upper(), bg=BG, fg=MUTED, font=("Segoe UI", 7, "bold")).pack(
-                anchor="w", pady=(8, 4))
-            box = tk.Frame(v, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+                anchor="w", pady=(10, 4))
+            box = RoundBox(v, r=10, fill=PANEL, border=LINE, padx=12, pady=10)
             box.pack(fill="x")
-            inner = tk.Frame(box, bg=PANEL)
-            inner.pack(fill="x", padx=12, pady=10)
-            return inner
+            return box.body
 
         def button(parent, text, cmd, primary=False):
-            b = tk.Label(parent, text=text, bg=ACC if primary else SEL, fg=ON_ACC if primary else FG,
-                         font=("Segoe UI", 9, "bold" if primary else "normal"), padx=14, pady=6, cursor="hand2")
-            b.bind("<Button-1>", lambda e: cmd())
-            return b
+            return self.pill(parent, text, cmd, kind="accent" if primary else "ghost")
 
         # Valorant
         vb = section(t("sec_val"))
@@ -2098,14 +2271,17 @@ class App(tk.Tk):
         row.pack(fill="x")
         tk.Label(row, text=t("region"), bg=PANEL, fg=FG, font=("Segoe UI", 9)).pack(side="left")
         regv = tk.StringVar(value=self.settings.get("region", "eu"))
-        pills = tk.Frame(row, bg=SEG_BG, padx=2, pady=2)
-        pills.pack(side="left", padx=10)
+        track = RoundBox(row, r=9, fill=SEG_BG, border=LINE, padx=3, pady=3)
+        track.pack(side="left", padx=10)
+        pills = track.body
         pill_lbls = {}
 
         def paint_pills():
-            for code, lb in pill_lbls.items():
+            for code, (pb, lb) in pill_lbls.items():
                 sel = code == regv.get()
-                lb.config(bg=ACC if sel else SEG_BG, fg=ON_ACC if sel else MUTED)
+                fill = TAB_SEL if sel else SEG_BG
+                pb.paint(fill=fill, border=ACC if sel else fill, outer=SEG_BG)
+                lb.config(fg=FG if sel else MUTED)
 
         def region_changed(_=None):
             self.settings["region"] = regv.get()
@@ -2114,10 +2290,13 @@ class App(tk.Tk):
             paint_pills()
 
         for code in REGIONS:
-            lb = tk.Label(pills, text=code.upper(), font=("Segoe UI", 8, "bold"), padx=8, pady=3, cursor="hand2")
-            lb.pack(side="left", padx=1)
-            lb.bind("<Button-1>", lambda e, c=code: (regv.set(c), region_changed()))
-            pill_lbls[code] = lb
+            pb = RoundBox(pills, r=7, fill=SEG_BG, outer=SEG_BG, cursor="hand2")
+            pb.pack(side="left", padx=1)
+            lb = pb.add(tk.Label(pb.body, text=code.upper(), bg=SEG_BG, font=("Segoe UI", 8, "bold"), padx=7, pady=2,
+                                 cursor="hand2"))
+            lb.pack()
+            pb.bind_parts("<Button-1>", lambda e, c=code: (regv.set(c), region_changed()))
+            pill_lbls[code] = (pb, lb)
         paint_pills()
 
         def refresh_now():
@@ -2176,7 +2355,7 @@ class App(tk.Tk):
         self.refresh()
 
 
-TOGGLE_FRAMES = ["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"]
+TOGGLE_FRAMES = ["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"]
 
 TITLE_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACZklEQVR42rWTy0tUcRTHv+d3ZxxnNCcfkZuKFiE5BgVBEkGzbxEShpseqxK0Fu1yM4KLVmbqxn+gTQ8tWlWLLLWcnCRfhSCaMPlgfMzjzsz93Xt/v9PCSQYJskWf5XlxvofvAQowM2GfFNfSnkQjgGoAvDdXFNskovHdaIRZFJprTcU2/4Xh7z/tsUWrFgAikYgQnYAAABNosQneyeVNmZGuAqAsx1WZvK0sV6ul9aR69mFaOi57oTItABAOdwoq6BHLKXcm66i6+Moam1nLOH38EI4droKtGatbJuaWVkBg5fP5yZbb832JmVOvL13THuxsoCu9evRo0HfSMUuVwRrDXxdw5sQRlAVK8fnbIhxLIpVMwmUh7Oz66JvWG/rqk6fCAEDhcBiu13ivNa77/WUV/lIv11RX0UY6i5HoFDYTCWxvbem8JUXeyq/kcqnLY2/P2c319TuXZmaDiFSKuUkAg/M/NpSrtCGljdjkNGzHgi1dFThQYaRT5pWutubBublZIxRqUAIAiEgxsxEkGoonrKGDVTVGLpdTeSnhahe2dJUvEDDWV1dfdLU1D0bHx41QqEGhoL/IBkyqvPSumTXTJAyyLMmObTMIZFky7Q1W3mFmmojF+HfT7gAi0gBEQ4DiycT2fa+/XEjpKOW6KkAeoZOpjge3muKPerqN9vZ2/UcnAsAws3ER0C8nFka11udnp6bBpvkxcu/mhfkvUVF3tlEV14u9A4KxKIiIS3y+265iDRLaZWoFEXf3+Pb3LH29ax4A6H3+rq+j/3E/AAwM9HvwDxAz06uhjPfhp5GSglsJ/4NfWPpuydfGlREAAAAASUVORK5CYII="
 
