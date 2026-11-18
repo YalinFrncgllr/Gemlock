@@ -1,10 +1,10 @@
 """
-Gemlock 1.3.0 — Riot hesap yöneticisi
+Gemlock 1.4.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
   -> giriş yapar -> oyunu başlatır -> işi bitince TAMAMEN kapanır
-- Rank'lar: Valorant (HenrikDev API, Riot ID ile) ve LoL (açık olan LoL client'tan)
+- Rank'lar: Valorant (Gemlock rank sunucusu üzerinden, anahtar gerekmez) ve LoL (açık olan LoL client'tan)
 - LoL seçiliyse Blitz'i de açıp öne getirebilir
 - Tüm veriler (hesap adları, kullanıcı adları, şifreler, Riot ID'ler, rank'lar, ayarlar)
   sadece bu bilgisayarda, %LOCALAPPDATA%/Gemlock/data içinde, Windows DPAPI ile şifreli durur.
@@ -44,8 +44,9 @@ ICON_DIR = os.path.join(os.environ.get("LOCALAPPDATA", APPDATA), "Gemlock")
 INSTALL_DIR = os.path.join(os.environ.get("LOCALAPPDATA", APPDATA), "Gemlock")
 INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
-VAL_REFRESH_SEC = 10 * 60  # Valorant rank'ı en fazla 10 dakikada bir yenilenir
-VERSION = "1.3.0"
+VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
+RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
+VERSION = "1.4.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -508,11 +509,11 @@ def summarize_lol(stats):
     return {"short": short, "solo": solo or "Rank yok", "flex": flex or "Rank yok", "prev": prev, "ts": time.time()}
 
 
-def henrik_mmr(api_key, region, name, tag):
-    url = "https://api.henrikdev.xyz/valorant/v3/mmr/{}/pc/{}/{}".format(
-        urllib.parse.quote(region), urllib.parse.quote(name), urllib.parse.quote(tag))
-    req = urllib.request.Request(url, headers={"Authorization": api_key, "User-Agent": "Gemlock/" + VERSION})
-    with urllib.request.urlopen(req, timeout=10) as r:
+def fetch_val_rank(region, name, tag, version):
+    """Gemlock rank sunucusundan Valorant rank'ı. `version` aynıysa sunucu önbellekten cevap verir."""
+    q = urllib.parse.urlencode({"region": region, "name": name, "tag": tag, "v": version})
+    req = urllib.request.Request(f"{RANK_API}?{q}", headers={"X-Gemlock": VERSION, "User-Agent": "Gemlock/" + VERSION})
+    with urllib.request.urlopen(req, timeout=15) as r:
         return json.loads(r.read().decode("utf-8")).get("data") or {}
 
 
@@ -879,40 +880,61 @@ class App(tk.Tk):
 
     # ------------------------------------------------------- Valorant rank
     def refresh_val_async(self, force=False):
-        key = self.settings.get("henrik_key", "").strip()
-        if not key:
-            return
+        """Sadece gerekli hesapları sorar:
+        - Gemlock ile giriş yapılıp oynanmış olabilecek hesaplar (rank değişmiş olabilir)
+        - 6 saattir yenilenmemiş hesaplar
+        Böylece sunucunun ortak sorgu hakkı korunur."""
         region = self.settings.get("region", "eu")
+        played = self.settings.get("played", {})
+        now = time.time()
         todo = []
         for a in self.accounts:
             name, tag = split_riot_id(a.get("riot_id"))
             if not name:
                 continue
-            old = self.rank_of(a, "val")
-            if force or time.time() - old.get("ts", 0) > VAL_REFRESH_SEC:
-                todo.append((self.key_of(a), name, tag))
+            k = self.key_of(a)
+            last = self.rank_of(a, "val").get("ts", 0)
+            pts = played.get(k, 0)
+            if force:
+                ver = str(int(now))
+            elif pts > last:
+                ver = f"p{int(pts)}"                 # oynandı: yeni sorgu
+            elif now - last > VAL_IDLE_SEC:
+                ver = f"b{int(now // VAL_IDLE_SEC)}"  # 6 saatlik dilim: herkes aynı önbelleği paylaşır
+            else:
+                continue
+            todo.append((k, name, tag, ver))
         if not todo:
             return
 
         def work():
-            errors = 0
-            for k, name, tag in todo:
+            busy = failed = 0
+            for k, name, tag, ver in todo:
                 try:
-                    summ = summarize_val(henrik_mmr(key, region, name, tag))
+                    summ = summarize_val(fetch_val_rank(region, name, tag, ver))
                     with self.rank_lock:
                         self.ranks.setdefault(k, {})["val"] = summ
                         save_json(RANK_FILE, self.ranks)
+                    self.ranks_dirty = True
                 except urllib.error.HTTPError as e:
-                    errors += 1
-                    if e.code in (401, 403):
-                        self.ui_msg = "Henrik API anahtarı geçersiz (⚙)"
-                        break
                     if e.code == 429:
-                        time.sleep(3)
+                        busy += 1
+                        break                       # sunucu yoğun: kalanları sonraki açılışa bırak
+                    if e.code == 404:
+                        with self.rank_lock:
+                            self.ranks.setdefault(k, {})["val"] = {"short": "Riot ID bulunamadı", "current": "Riot ID bulunamadı", "ts": time.time()}
+                            save_json(RANK_FILE, self.ranks)
+                        self.ranks_dirty = True
+                    else:
+                        failed += 1
                 except Exception:
-                    errors += 1
-                time.sleep(0.4)
-            if not errors and not self.ui_msg:
+                    failed += 1
+                time.sleep(1.0)                     # sunucuya nazik ol
+            if busy:
+                self.ui_msg = "Rank sunucusu yoğun, kalan rank'lar sonraki açılışta güncellenecek"
+            elif failed:
+                self.ui_msg = "Bazı Valorant rank'ları alınamadı (internet bağlantısını kontrol et)"
+            else:
                 self.ui_msg = "Valorant rank'ları güncel"
             self.ranks_dirty = True
 
@@ -1132,6 +1154,8 @@ class App(tk.Tk):
 
         self.save_position()
         self.logged_in = True
+        self.settings.setdefault("played", {})[self.key_of(a)] = time.time()
+        save_json(SETTINGS_FILE, self.settings)
         self.withdraw()
         time.sleep(0.25)
         for _ in range(4):  # Riot'u öne getir, gerçekten öne geldiğinden emin ol
@@ -1307,11 +1331,10 @@ class App(tk.Tk):
                           ("▲", lambda: move(-1)), ("▼", lambda: move(1))):
             ttk.Button(bar, text=text, command=cmd, width=7 if len(text) > 1 else 3).pack(side="left", padx=2)
 
-        box = ttk.LabelFrame(win, text="Valorant rank (HenrikDev API)")
+        box = ttk.LabelFrame(win, text="Valorant rank")
         box.pack(fill="x", padx=10, pady=(0, 10))
-        ttk.Label(box, text="API anahtarı").grid(row=0, column=0, padx=6, pady=4, sticky="w")
-        keyv = tk.StringVar(value=self.settings.get("henrik_key", ""))
-        ttk.Entry(box, textvariable=keyv, width=30, show="•").grid(row=0, column=1, padx=6, pady=4)
+        ttk.Label(box, text="Anahtar gerekmez; rank'lar Gemlock sunucusundan gelir.", foreground=MUTED).grid(
+            row=0, column=0, columnspan=2, padx=6, pady=(4, 2), sticky="w")
         ttk.Label(box, text="Bölge").grid(row=1, column=0, padx=6, pady=4, sticky="w")
         regv = tk.StringVar(value=self.settings.get("region", "eu"))
         ttk.Combobox(box, textvariable=regv, values=REGIONS, state="readonly", width=8).grid(
@@ -1319,14 +1342,14 @@ class App(tk.Tk):
         ttk.Label(box, text="Türkiye sunucusu için 'eu' seç.", foreground=MUTED).grid(
             row=2, column=0, columnspan=2, padx=6, sticky="w")
 
-        def save_key():
-            self.settings["henrik_key"] = keyv.get().strip()
+        def save_region():
             self.settings["region"] = regv.get()
+            self.settings.pop("henrik_key", None)  # eski sürümlerden kalan anahtar artık kullanılmıyor
             save_json(SETTINGS_FILE, self.settings)
             self.set_status("Valorant rank'ları yenileniyor…")
             self.refresh_val_async(force=True)
 
-        ttk.Button(box, text="Kaydet ve rank'ları yenile", command=save_key).grid(
+        ttk.Button(box, text="Kaydet ve rank'ları şimdi yenile", command=save_region).grid(
             row=3, column=0, columnspan=2, padx=6, pady=6, sticky="we")
 
         up = ttk.LabelFrame(win, text="Güncelleme")

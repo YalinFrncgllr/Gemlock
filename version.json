@@ -1,6 +1,6 @@
 {
-  "version": "1.3.0",
+  "version": "1.4.0",
   "file": "gemlock.pyw",
-  "sha256": "c51a923d90914c71ee88377dce155af14bada0a82e37308b313b01f175a6ffbd",
-  "notes": "Tüm veriler artık tamamen şifreli ve sadece bu bilgisayarda. Daha küçük, net elmas simge."
+  "sha256": "f243322ce91245f03d5d4695ac8aabbbc41f3e98e293941a3764abc2728ffda7",
+  "notes": "Valorant rank'ları artık anahtar gerektirmeden Gemlock sunucusundan geliyor."
 }
