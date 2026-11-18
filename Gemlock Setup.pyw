@@ -1,5 +1,5 @@
 """
-Gemlock 1.8.1 — Riot hesap yöneticisi
+Gemlock 1.9.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -47,7 +47,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.8.1"
+VERSION = "1.9.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -458,7 +458,7 @@ LANG = "en"  # App açılınca ayarlardan okunur ("en" varsayılan)
 
 STR = {
     "en": {
-        "client_only": "Client only", "blitz": "Also open Blitz with LoL / TFT", "h_account": "ACCOUNT",
+        "client_only": "Client only", "blitz": "Also open Blitz", "h_account": "ACCOUNT",
         "login": "Log in", "keys": "1-9 quick login · Enter log in · Right-click an account to edit · Esc close",
         "first_login": "Fills in on first login", "rid_pending": "Riot ID is added automatically on the first login with this account",
         "unranked": "Unranked", "last": "last", "peak": "peak", "last_season": "last season", "prev_season": "last season",
@@ -497,7 +497,7 @@ STR = {
         "decay": "Decay risk: not played through Gemlock for {n} days (Diamond+ can stay inactive for at most 28 days)",
     },
     "tr": {
-        "client_only": "Sadece Client", "blitz": "LoL / TFT ile Blitz'i de aç", "h_account": "HESAP",
+        "client_only": "Sadece Client", "blitz": "Blitz'i de aç", "h_account": "HESAP",
         "login": "Giriş yap", "keys": "1-9 hızlı giriş · Enter giriş · Düzenlemek için hesaba sağ tıkla · Esc kapat",
         "first_login": "İlk girişte gelir", "rid_pending": "Riot ID bu hesapla ilk girişte kendiliğinden eklenecek",
         "unranked": "Rank yok", "last": "son", "peak": "en yüksek", "last_season": "son sezon", "prev_season": "geçen sezon",
@@ -943,6 +943,47 @@ def sign_out_riot():
         pass
 
 
+class Toggle(tk.Canvas):
+    """Modern açma/kapama anahtarı (işaret kutusu yerine)."""
+    W, H = 34, 18
+
+    def __init__(self, parent, on, command):
+        super().__init__(parent, width=self.W, height=self.H, bg=parent["bg"], highlightthickness=0,
+                         bd=0, cursor="hand2")
+        self.on = bool(on)
+        self.command = command
+        self.bind("<Button-1>", lambda e: self.toggle())
+        self.draw()
+
+    def draw(self, knob_x=None):
+        self.delete("all")
+        w, h, r = self.W, self.H, self.H / 2
+        track = ACC if self.on else LINE
+        self.create_oval(0, 0, h, h, fill=track, outline=track)
+        self.create_oval(w - h, 0, w, h, fill=track, outline=track)
+        self.create_rectangle(r, 0, w - r, h, fill=track, outline=track)
+        x = knob_x if knob_x is not None else (w - r if self.on else r)
+        knob = ON_ACC if self.on else MUTED
+        self.create_oval(x - r + 3, 3, x + r - 3, h - 3, fill=knob, outline=knob)
+
+    def set(self, on, animate=True):
+        on = bool(on)
+        if on == self.on:
+            return
+        self.on = on
+        if not animate:
+            self.draw()
+            return
+        r = self.H / 2
+        a, b = (r, self.W - r) if on else (self.W - r, r)
+        for i in range(1, 7):
+            self.after(i * 16, lambda x=a + (b - a) * i / 6: self.draw(x))
+
+    def toggle(self):
+        self.set(not self.on)
+        self.command(self.on)
+
+
 def dark_titlebar(win):
     """Windows 10/11'de başlık çubuğunu koyu yapar."""
     try:
@@ -1002,7 +1043,10 @@ class App(tk.Tk):
         global LANG
         LANG = self.settings.get("lang", "en")
         self.game = tk.StringVar(value=self.settings.get("game", "valorant"))
-        self.blitz = tk.BooleanVar(value=self.settings.get("blitz", False))
+        # Blitz her oyun için ayrı: {"valorant": bool, "league_of_legends": bool, "tft": bool}
+        if "blitz_games" not in self.settings:
+            old = bool(self.settings.get("blitz", False))  # eski tek ayar LoL ve TFT'ye taşınır
+            self.settings["blitz_games"] = {"valorant": False, "league_of_legends": old, "tft": old}
         self.game.trace_add("write", lambda *_: (self.update_blitz_box(), self.paint_games()))
         self._last_sel = None
         self.sel_index = None
@@ -1075,10 +1119,12 @@ class App(tk.Tk):
             b.bind("<Button-1>", lambda e, c=code: self.set_game(c))
             self.game_btns[code] = b
 
-        self.blitz_box = tk.Checkbutton(root, text=t("blitz"), variable=self.blitz,
-                                        command=self.blitz_toggled, bg=BG, fg=FG, selectcolor=PANEL,
-                                        activebackground=BG, activeforeground=FG, font=("Segoe UI", 9),
-                                        bd=0, highlightthickness=0)
+        self.blitz_box = tk.Frame(root, bg=BG)
+        self.blitz_switch = Toggle(self.blitz_box, self.blitz_on(), self.blitz_toggled)
+        self.blitz_switch.pack(side="left")
+        lb = tk.Label(self.blitz_box, text=t("blitz"), bg=BG, fg=FG, font=("Segoe UI", 9), cursor="hand2")
+        lb.pack(side="left", padx=(8, 0))
+        lb.bind("<Button-1>", lambda e: self.blitz_switch.toggle())
         st_row = tk.Frame(root, bg=BG)
         st_row.pack(fill="x", padx=12, pady=(2, 6))
         self.status_dot = tk.Label(st_row, text="●", bg=BG, fg=ACC, font=("Segoe UI", 7))
@@ -1664,21 +1710,30 @@ class App(tk.Tk):
         self.after(300, self.tick)
 
     # ------------------------------------------------------------ seçim
-    def update_blitz_box(self):
-        # Blitz seçeneği her zaman ana ekranda görünür (sadece LoL / TFT'de kullanılır)
-        if not self.blitz_box.winfo_ismapped():
-            self.blitz_box.pack(anchor="w", padx=10, before=self.status_row)
+    def blitz_on(self, game=None):
+        game = self.game.get() if game is None else game
+        return bool(self.settings.get("blitz_games", {}).get(game, False))
 
-    def blitz_toggled(self):
-        self.settings["blitz"] = self.blitz.get()
-        if self.blitz.get() and not find_blitz_exe(self.settings.get("blitz_path")):
+    def update_blitz_box(self):
+        """Blitz anahtarı her oyun sekmesinde o oyunun kendi ayarını gösterir; Client only'de gizlenir."""
+        if self.game.get():
+            self.blitz_switch.set(self.blitz_on(), animate=False)
+            if not self.blitz_box.winfo_ismapped():
+                self.blitz_box.pack(anchor="w", padx=14, pady=(2, 4), before=self.status_row)
+        else:
+            self.blitz_box.pack_forget()
+
+    def blitz_toggled(self, on):
+        game = self.game.get()
+        if on and not find_blitz_exe(self.settings.get("blitz_path")):
             path = filedialog.askopenfilename(parent=self, title=t("blitz_pick"),
                                               filetypes=[("Blitz", "Blitz.exe"), ("Programlar", "*.exe")])
             if path:
                 self.settings["blitz_path"] = path
             else:
-                self.blitz.set(False)
-                self.settings["blitz"] = False
+                on = False
+                self.blitz_switch.set(False)
+        self.settings.setdefault("blitz_games", {})[game] = on
         save_json(SETTINGS_FILE, self.settings)
 
     def sync_game(self):
@@ -1834,8 +1889,8 @@ class App(tk.Tk):
         else:
             self.exit_procs = GAME_PROCESSES
 
-        if product == "league_of_legends":
-            if self.blitz.get():
+        if product and self.blitz_on():
+            if True:
                 blitz = find_blitz_exe(self.settings.get("blitz_path"))
                 if blitz:
                     subprocess.Popen([blitz], close_fds=True, cwd=os.path.dirname(blitz))
@@ -2040,15 +2095,27 @@ class App(tk.Tk):
         row.pack(fill="x")
         tk.Label(row, text=t("region"), bg=PANEL, fg=FG, font=("Segoe UI", 9)).pack(side="left")
         regv = tk.StringVar(value=self.settings.get("region", "eu"))
-        cb = ttk.Combobox(row, textvariable=regv, values=REGIONS, state="readonly", width=7)
-        cb.pack(side="left", padx=10)
+        pills = tk.Frame(row, bg=SEG_BG, padx=2, pady=2)
+        pills.pack(side="left", padx=10)
+        pill_lbls = {}
+
+        def paint_pills():
+            for code, lb in pill_lbls.items():
+                sel = code == regv.get()
+                lb.config(bg=ACC if sel else SEG_BG, fg=ON_ACC if sel else MUTED)
 
         def region_changed(_=None):
             self.settings["region"] = regv.get()
             self.settings.pop("henrik_key", None)
             save_json(SETTINGS_FILE, self.settings)
+            paint_pills()
 
-        cb.bind("<<ComboboxSelected>>", region_changed)
+        for code in REGIONS:
+            lb = tk.Label(pills, text=code.upper(), font=("Segoe UI", 8, "bold"), padx=8, pady=3, cursor="hand2")
+            lb.pack(side="left", padx=1)
+            lb.bind("<Button-1>", lambda e, c=code: (regv.set(c), region_changed()))
+            pill_lbls[code] = lb
+        paint_pills()
 
         def refresh_now():
             region_changed()

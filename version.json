@@ -1,7 +1,7 @@
 {
-  "version": "1.8.1",
+  "version": "1.9.0",
   "file": "gemlock.pyw",
-  "sha256": "0ecc46eef3d3a4a2e504fc47faf4f939a5c369e7721bdcd66f5e7982e0f0feb3",
-  "notes": "Riot Client gibi kendi başlık çubuğu (sadece – ve ✕), listenin altında görünür Düzenle / Sil / ↑ / ↓ butonları, Blitz seçeneği tekrar ana ekranda.",
-  "notes_en": "Riot-style title bar (only – and ✕), visible Edit / Delete / ↑ / ↓ buttons under the list, Blitz option back on the main screen."
+  "sha256": "1e89ee74dd7b40233306f2dc5d1edd3ab0404b90e3b9b20878acd532b12856a0",
+  "notes": "Blitz her oyun için ayrı ayarlanıyor (Valorant dahil), işaret kutusu yerine modern açma/kapama anahtarı, bölge seçimi haplarla.",
+  "notes_en": "Blitz is set separately for each game (including Valorant), a modern on/off switch replaces the checkbox, region picker uses pills."
 }
