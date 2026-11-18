@@ -1,6 +1,6 @@
 {
-  "version": "1.5.0",
+  "version": "1.5.1",
   "file": "gemlock.pyw",
-  "sha256": "ed9a51f2e4cf91641ccffd6e1c6bffe02059271eae18c6d75cbb8f16a23a3d76",
-  "notes": "Riot ID artık girişte kendiliğinden doluyor (Valorant ve LoL). Blitz kutusu varsayılan olarak kapalı."
+  "sha256": "18c242c184c65b3425931929dd213e6203991521ec4177a46747ed7a1c514268",
+  "notes": "Valorant ya da LoL maçı başladığı an Gemlock anında kapanır."
 }

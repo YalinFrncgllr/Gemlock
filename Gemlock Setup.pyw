@@ -1,5 +1,5 @@
 """
-Gemlock 1.5.0 — Riot hesap yöneticisi
+Gemlock 1.5.1 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -46,7 +46,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.5.0"
+VERSION = "1.5.1"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -215,6 +215,25 @@ def find_window_of(exe_name):
     user32.EnumWindows(EnumWindowsProc(cb), 0)
     visible = [h for h in found if user32.IsWindowVisible(h)]
     return (visible or found or [None])[0]
+
+
+GAME_PROCESSES = {"valorant-win64-shipping.exe", "league of legends.exe"}  # maç/oyun süreçleri
+
+
+def game_running():
+    """Valorant oyunu ya da LoL maçı açıldı mı? (Gemlock o an kapanır)"""
+    try:
+        psapi = ctypes.WinDLL("psapi")
+        arr = (wintypes.DWORD * 4096)()
+        needed = wintypes.DWORD()
+        if not psapi.EnumProcesses(ctypes.byref(arr), ctypes.sizeof(arr), ctypes.byref(needed)):
+            return False
+        for i in range(needed.value // ctypes.sizeof(wintypes.DWORD)):
+            if arr[i] and _process_name(arr[i]) in GAME_PROCESSES:
+                return True
+    except Exception:
+        pass
+    return False
 
 
 def bring_to_front(hwnd):
@@ -1272,7 +1291,9 @@ class App(tk.Tk):
 
     def finish_when_done(self):
         # LoL rank'ları okunup Blitz öne gelince (en fazla ~3,5 dk) program tamamen kapanır
-        if (self.lcu_done and self.blitz_done and self.rid_done) or time.time() - self.finish_started > 210:
+        # işler bitince ya da oyun/maç başladığı an (Gemlock oyun açıkken hiç çalışmasın) tamamen kapan
+        if (self.lcu_done and self.blitz_done and self.rid_done) or game_running() \
+                or time.time() - self.finish_started > 210:
             self.destroy()
             return
         self.after(500, self.finish_when_done)
