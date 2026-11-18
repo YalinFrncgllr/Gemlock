@@ -1,5 +1,5 @@
 """
-Gemlock 1.7.1 — Riot hesap yöneticisi
+Gemlock 1.7.2 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -47,7 +47,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.7.1"
+VERSION = "1.7.2"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -876,6 +876,18 @@ def fit_text(text, font, px):
     return text + "…"
 
 
+def no_maximize(win):
+    """Boyutu değişmeyen pencerede büyüt düğmesini kaldırır (Riot Client gibi sadece küçült ve kapat)."""
+    try:
+        user32 = ctypes.windll.user32
+        hwnd = user32.GetParent(win.winfo_id())
+        style = user32.GetWindowLongW(hwnd, -16)               # GWL_STYLE
+        user32.SetWindowLongW(hwnd, -16, style & ~0x00010000)  # WS_MAXIMIZEBOX kaldır
+        user32.SetWindowPos(hwnd, 0, 0, 0, 0, 0, 0x0027)       # NOMOVE|NOSIZE|NOZORDER|FRAMECHANGED
+    except Exception:
+        pass
+
+
 def dark_titlebar(win):
     """Windows 10/11'de başlık çubuğunu koyu yapar."""
     try:
@@ -928,7 +940,7 @@ class App(tk.Tk):
         self.icon_imgs = {}
 
         self.apply_styles()
-        self.after(50, lambda: dark_titlebar(self))
+        self.after(50, lambda: (dark_titlebar(self), no_maximize(self)))
 
         global LANG
         LANG = self.settings.get("lang", "en")

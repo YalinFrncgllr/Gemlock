@@ -1,7 +1,7 @@
 {
-  "version": "1.7.1",
+  "version": "1.7.2",
   "file": "gemlock.pyw",
-  "sha256": "d55670c02e0ff92e64b3d947a4cc8327f0ac2d3bf8dcd8c56393e8de0facfcb8",
-  "notes": "Hesap listesi sütunları hizalandı, TFT sütunu eklendi, pencere biraz genişledi.",
-  "notes_en": "Account list columns are aligned, a TFT column was added and the window is a bit wider."
+  "sha256": "10a3e80dffee40dac66aca7ddb12ebd14fa8110c285449031fe80a370bb50fe1",
+  "notes": "Pencerede büyüt düğmesi kaldırıldı; Riot Client gibi sadece küçült ve kapat var.",
+  "notes_en": "The maximize button was removed; like the Riot Client, only minimize and close remain."
 }
