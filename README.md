@@ -20,7 +20,7 @@ A small Windows tool for switching between Riot accounts with one click.
 ## Updates
 Gemlock checks `version.json` in this repository on startup. To publish an update, replace `gemlock.pyw`, bump `version` and `sha256` in `version.json`, and push to `main`.
 
-Gemlock was created under Riot Games' "Legal Jibber Jabber" policy using assets owned by Riot Games. Riot Games does not endorse or sponsor this project.
+Gemlock is not affiliated with, endorsed or sponsored by Riot Games.
 
 ## Rank server
 `server/` is a tiny Vercel function. It keeps the HenrikDev API key in the `HENRIK_KEY` environment variable, caches answers on Vercel's CDN for 30 minutes, and only accepts valid Riot IDs. Gemlock only asks for accounts that were just played or that have not been refreshed for 6 hours.
