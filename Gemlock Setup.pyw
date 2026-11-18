@@ -1,5 +1,5 @@
 """
-Gemlock 1.5.3 — Riot hesap yöneticisi
+Gemlock 1.6.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -46,7 +46,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.5.3"
+VERSION = "1.6.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -81,7 +81,7 @@ def _dpapi(func, data: bytes) -> bytes:
     b_in = DATA_BLOB(len(data), ctypes.cast(buf, ctypes.POINTER(ctypes.c_char)))
     b_out = DATA_BLOB()
     if not func(ctypes.byref(b_in), None, None, None, None, 0, ctypes.byref(b_out)):
-        raise OSError("Şifre işlemi başarısız (başka bir Windows kullanıcısı olabilir)")
+        raise OSError(t("dpapi"))
     raw = ctypes.string_at(b_out.pbData, b_out.cbData)
     kernel32.LocalFree(b_out.pbData)
     return raw
@@ -453,27 +453,119 @@ def self_install():
 
 
 # ================================================================ Rank'lar ====
-VAL_TR = {"Iron": "Demir", "Bronze": "Bronz", "Silver": "Gümüş", "Gold": "Altın", "Platinum": "Platin",
-          "Diamond": "Elmas", "Ascendant": "Yücelik", "Immortal": "Ölümsüz", "Radiant": "Radyant"}
-LOL_TR = {"IRON": "Demir", "BRONZE": "Bronz", "SILVER": "Gümüş", "GOLD": "Altın", "PLATINUM": "Platin",
-          "EMERALD": "Zümrüt", "DIAMOND": "Elmas", "MASTER": "Ustalık", "GRANDMASTER": "Büyük Ustalık",
-          "CHALLENGER": "Şampiyonluk"}
+LANG = "en"  # App açılınca ayarlardan okunur ("en" varsayılan)
+
+STR = {
+    "en": {
+        "client_only": "Client only", "blitz": "Also open Blitz with LoL / TFT", "h_account": "ACCOUNT",
+        "login": "Log in", "keys": "1-9 quick login · ↑↓ select · Enter log in · Esc close",
+        "first_login": "Fills in on first login", "rid_pending": "Riot ID is added automatically on the first login with this account",
+        "unranked": "Unranked", "last": "last", "peak": "peak", "last_season": "last season", "prev_season": "last season",
+        "flex": "Flex", "tft": "TFT", "just_now": "just now", "hours_ago": "{n}h ago", "days_ago": "{n}d ago",
+        "rid_nf": "Riot ID not found",
+        "srv_busy": "Rank server is busy; the rest will update next time", "val_fail": "Some Valorant ranks could not be loaded (check your internet)",
+        "val_ok": "Valorant ranks are up to date",
+        "upd_title": "Gemlock update", "upd_q": "A new version is available: {new} (you have {cur})\n\n{notes}\n\nUpdate now?",
+        "upd_ok": "Gemlock is up to date · version {v}", "upd_fail_check": "Could not check for updates (check your internet)",
+        "upd_dl": "Downloading version {v}…", "upd_fail_t": "Update failed",
+        "upd_fail": "The update could not be installed: {e}\nThe current version keeps running.",
+        "rc_open": "Riot Client is open · pick an account", "rc_opening": "Opening Riot Client… you can pick an account already",
+        "rc_missing": "Riot Client not found, please open it yourself", "blitz_pick": "Select Blitz.exe",
+        "pending": "'{name}' will log in as soon as Riot is ready…", "err": "Error",
+        "stop_t": "Login stopped",
+        "stop": "Riot Client did not come to the front, so the password was not typed for safety.\nClick the Riot window once and press 'Log in' again.",
+        "f_label": "Label (e.g. Main)", "f_user": "Username", "f_pw": "Password", "f_rid": "Riot ID (name#tag)",
+        "rid_hint": "Optional. Leave it empty and it fills in automatically on the first login through Gemlock (e.g. Player#TR1).",
+        "save": "Save", "manage_t": "Gemlock · Settings & accounts", "add_t": "Add account", "edit_t": "Edit account",
+        "del_t": "Delete", "del_q": "Delete '{name}'?", "b_add": "Add", "b_edit": "Edit", "b_del": "Delete",
+        "val_box": "Valorant rank", "val_nokey": "No key needed; ranks come from the Gemlock server.", "region": "Region",
+        "region_hint": "Pick 'eu' for Turkey servers.", "val_refreshing": "Refreshing Valorant ranks…",
+        "val_save": "Save and refresh ranks now", "upd_box": "Updates",
+        "upd_info": "Version {v} · new versions are checked on every start.", "upd_checking": "Checking for updates…",
+        "upd_now": "Check now", "sc_ok_t": "Done", "sc_ok": "A 'Gemlock' shortcut was created on your desktop.",
+        "sc_fail": "Could not create the shortcut.", "sc_btn": "Create desktop shortcut",
+        "dpapi": "Could not decrypt (it may belong to another Windows user)",
+    },
+    "tr": {
+        "client_only": "Sadece Client", "blitz": "LoL / TFT ile Blitz'i de aç", "h_account": "HESAP",
+        "login": "Giriş yap", "keys": "1-9 hızlı giriş · ↑↓ seç · Enter giriş · Esc kapat",
+        "first_login": "İlk girişte gelir", "rid_pending": "Riot ID bu hesapla ilk girişte kendiliğinden eklenecek",
+        "unranked": "Rank yok", "last": "son", "peak": "en yüksek", "last_season": "son sezon", "prev_season": "geçen sezon",
+        "flex": "Esnek", "tft": "TFT", "just_now": "az önce", "hours_ago": "{n} saat önce", "days_ago": "{n} gün önce",
+        "rid_nf": "Riot ID bulunamadı",
+        "srv_busy": "Rank sunucusu yoğun, kalan rank'lar sonraki açılışta güncellenecek",
+        "val_fail": "Bazı Valorant rank'ları alınamadı (internet bağlantısını kontrol et)", "val_ok": "Valorant rank'ları güncel",
+        "upd_title": "Gemlock güncellemesi", "upd_q": "Yeni sürüm var: {new} (şu an {cur})\n\n{notes}\n\nŞimdi güncellensin mi?",
+        "upd_ok": "Gemlock güncel · sürüm {v}", "upd_fail_check": "Güncelleme kontrol edilemedi (internet bağlantısını kontrol et)",
+        "upd_dl": "Sürüm {v} indiriliyor…", "upd_fail_t": "Güncelleme başarısız",
+        "upd_fail": "Güncelleme kurulamadı: {e}\nEski sürüm çalışmaya devam ediyor.",
+        "rc_open": "Riot Client açık · hesabını seç", "rc_opening": "Riot Client açılıyor… hesabı şimdiden seçebilirsin",
+        "rc_missing": "Riot Client bulunamadı, kendin aç", "blitz_pick": "Blitz.exe dosyasını seç",
+        "pending": "Riot hazır olunca '{name}' girilecek…", "err": "Hata",
+        "stop_t": "Giriş durduruldu",
+        "stop": "Riot Client öne gelmediği için güvenlik amacıyla şifre yazılmadı.\nRiot penceresine bir kez tıklayıp tekrar 'Giriş yap'a bas.",
+        "f_label": "Etiket (örn. Main)", "f_user": "Kullanıcı adı", "f_pw": "Şifre", "f_rid": "Riot ID (isim#etiket)",
+        "rid_hint": "İsteğe bağlı. Boş bırakırsan bu hesapla Gemlock üzerinden ilk girişte kendiliğinden dolar (örn. Oyuncu#TR1).",
+        "save": "Kaydet", "manage_t": "Gemlock · Ayarlar ve Hesaplar", "add_t": "Hesap ekle", "edit_t": "Hesabı düzenle",
+        "del_t": "Sil", "del_q": "'{name}' silinsin mi?", "b_add": "Ekle", "b_edit": "Düzenle", "b_del": "Sil",
+        "val_box": "Valorant rank", "val_nokey": "Anahtar gerekmez; rank'lar Gemlock sunucusundan gelir.", "region": "Bölge",
+        "region_hint": "Türkiye sunucusu için 'eu' seç.", "val_refreshing": "Valorant rank'ları yenileniyor…",
+        "val_save": "Kaydet ve rank'ları şimdi yenile", "upd_box": "Güncelleme",
+        "upd_info": "Sürüm {v} · her açılışta yeni sürüm otomatik kontrol edilir.", "upd_checking": "Güncelleme kontrol ediliyor…",
+        "upd_now": "Şimdi kontrol et", "sc_ok_t": "Tamam", "sc_ok": "Masaüstüne 'Gemlock' kısayolu oluşturuldu.",
+        "sc_fail": "Kısayol oluşturulamadı.", "sc_btn": "Masaüstüne simgeli kısayol oluştur",
+        "dpapi": "Şifre çözülemedi (başka bir Windows kullanıcısına ait olabilir)",
+    },
+}
+
+
+def t(key, **kw):
+    txt = STR.get(LANG, STR["en"]).get(key) or STR["en"].get(key, key)
+    return txt.format(**kw) if kw else txt
+
+
+# Rank'lar dilden bağımsız saklanır (İngilizce kademe adları), ekranda seçili dile çevrilir.
+VAL_TIERS_TR = {"Iron": "Demir", "Bronze": "Bronz", "Silver": "Gümüş", "Gold": "Altın", "Platinum": "Platin",
+                "Diamond": "Elmas", "Ascendant": "Yücelik", "Immortal": "Ölümsüz", "Radiant": "Radyant"}
+LOL_TIERS = {"IRON": ("Iron", "Demir"), "BRONZE": ("Bronze", "Bronz"), "SILVER": ("Silver", "Gümüş"),
+             "GOLD": ("Gold", "Altın"), "PLATINUM": ("Platinum", "Platin"), "EMERALD": ("Emerald", "Zümrüt"),
+             "DIAMOND": ("Diamond", "Elmas"), "MASTER": ("Master", "Ustalık"),
+             "GRANDMASTER": ("Grandmaster", "Büyük Ustalık"), "CHALLENGER": ("Challenger", "Şampiyonluk")}
 ROMAN = {"I": "1", "II": "2", "III": "3", "IV": "4"}
+VAL_COLORS = {"Iron": "#8a8a8a", "Bronze": "#b07a3c", "Silver": "#b9c2c9", "Gold": "#e5b94e", "Platinum": "#49b3c0",
+              "Diamond": "#c48ef5", "Ascendant": "#3fbf7f", "Immortal": "#e0466a", "Radiant": "#f5e07a"}
+LOL_COLORS = {"IRON": "#7a7470", "BRONZE": "#9a6240", "SILVER": "#9aa4ad", "GOLD": "#d4a94c", "PLATINUM": "#4fa3a5",
+              "EMERALD": "#2fbf71", "DIAMOND": "#6e8ff0", "MASTER": "#b45be0", "GRANDMASTER": "#e04b4b",
+              "CHALLENGER": "#f2c94c"}
+# eski sürümlerin Türkçe kaydettiği rank'ların rengi için
+_LEGACY_COLOR = {"Demir": "#8a8a8a", "Bronz": "#b07a3c", "Gümüş": "#b9c2c9", "Altın": "#e5b94e", "Platin": "#49b3c0",
+                 "Elmas": "#c48ef5", "Yücelik": "#3fbf7f", "Ölümsüz": "#e0466a", "Radyant": "#f5e07a",
+                 "Zümrüt": "#2fbf71", "Ustalık": "#b45be0", "Büyük": "#e04b4b", "Şampiyonluk": "#f2c94c"}
 
 
-def val_tier_tr(name):
+def val_tier_name(name):
     if not name:
         return ""
+    if LANG != "tr":
+        return name
     parts = name.split()
-    return " ".join([VAL_TR.get(parts[0], parts[0])] + parts[1:])
+    return " ".join([VAL_TIERS_TR.get(parts[0], parts[0])] + parts[1:])
 
 
-def lol_tier_tr(tier, div=""):
+def lol_tier_name(tier, div=""):
+    tier = (tier or "").upper()
     if not tier or tier in ("NONE", "UNRANKED"):
         return ""
-    t = LOL_TR.get(tier.upper(), tier.title())
-    d = ROMAN.get(div or "", "")
-    return f"{t} {d}".strip() if tier.upper() not in ("MASTER", "GRANDMASTER", "CHALLENGER") else t
+    en, tr = LOL_TIERS.get(tier, (tier.title(), tier.title()))
+    name = tr if LANG == "tr" else en
+    if tier in ("MASTER", "GRANDMASTER", "CHALLENGER"):
+        return name
+    return f"{name} {ROMAN.get(div or '', '')}".strip()
+
+
+def ago_text(ts):
+    h = int((time.time() - ts) / 3600)
+    return t("just_now") if h < 1 else t("hours_ago", n=h) if h < 48 else t("days_ago", n=h // 24)
 
 
 def split_riot_id(rid):
@@ -484,63 +576,140 @@ def split_riot_id(rid):
 
 
 def summarize_val(data):
-    """Henrik v3 mmr cevabını kısa özetlere çevirir."""
-    cur = (data.get("current") or {})
-    tier = (cur.get("tier") or {})
-    cur_name = tier.get("name") or ""
-    ranked = (tier.get("id") or 0) > 2 and cur_name.lower() != "unrated"
-    last = ""
-    for s in reversed(data.get("seasonal") or []):
-        et = s.get("end_tier") or {}
+    """Henrik v3 mmr cevabını dilden bağımsız, küçük bir kayda çevirir."""
+    cur = data.get("current") or {}
+    tier = cur.get("tier") or {}
+    rec = {"k": 2, "ts": time.time(), "cur": "", "rr": cur.get("rr", 0)}
+    if (tier.get("id") or 0) > 2 and (tier.get("name") or "").lower() != "unrated":
+        rec["cur"] = tier.get("name")
+    for sea in reversed(data.get("seasonal") or []):
+        et = sea.get("end_tier") or {}
         if (et.get("id") or 0) > 2:
-            short = (s.get("season") or {}).get("short", "")
-            last = f"{val_tier_tr(et.get('name'))} ({short})" if short else val_tier_tr(et.get("name"))
+            rec["last"], rec["last_s"] = et.get("name"), (sea.get("season") or {}).get("short", "")
             break
     peak = data.get("peak") or {}
-    peak_name = val_tier_tr((peak.get("tier") or {}).get("name"))
-    peak_season = (peak.get("season") or {}).get("short", "")
-    if ranked:
-        short = f"{val_tier_tr(cur_name)} · {cur.get('rr', 0)} RR"
-    elif last:
-        short = f"Rank yok · son {last.split(' (')[0]}"
-    elif peak_name:
-        short = f"Rank yok · en yüksek {peak_name}"
-    else:
-        short = "Rank yok"
-    return {
-        "short": short,
-        "current": f"{val_tier_tr(cur_name)} · {cur.get('rr', 0)} RR" if ranked else "Rank yok",
-        "last": last,
-        "peak": f"{peak_name} ({peak_season})" if peak_name and peak_season else peak_name,
-        "ts": time.time(),
-    }
+    if (peak.get("tier") or {}).get("name"):
+        rec["peak"], rec["peak_s"] = peak["tier"]["name"], (peak.get("season") or {}).get("short", "")
+    return rec
+
+
+def val_short(v, has_rid=True):
+    if not v:
+        return t("first_login") if not has_rid else "—"
+    if "k" not in v:
+        return v.get("short", "—")  # eski sürüm kaydı
+    if v.get("nf"):
+        return t("rid_nf")
+    if v.get("cur"):
+        return f"{val_tier_name(v['cur'])} · {v.get('rr', 0)} RR"
+    if v.get("last"):
+        return f"{t('unranked')} · {t('last')} {val_tier_name(v['last'])}"
+    if v.get("peak"):
+        return f"{t('unranked')} · {t('peak')} {val_tier_name(v['peak'])}"
+    return t("unranked")
+
+
+def val_color(v):
+    if not v:
+        return None
+    if "k" not in v:
+        return _legacy_color(v.get("short", ""))
+    for f in ("cur", "last", "peak"):
+        if v.get(f):
+            return VAL_COLORS.get(v[f].split()[0])
+    return None
+
+
+def val_detail(v):
+    if not v:
+        return ""
+    if "k" not in v:
+        return f"Valorant: {v.get('current', '—')}"
+    if v.get("nf"):
+        return f"Valorant: {t('rid_nf')}"
+    s = "Valorant: " + (f"{val_tier_name(v['cur'])} · {v.get('rr', 0)} RR" if v.get("cur") else t("unranked"))
+    if v.get("last"):
+        s += f"  ·  {t('last_season')} {val_tier_name(v['last'])}" + (f" ({v['last_s']})" if v.get("last_s") else "")
+    if v.get("peak"):
+        s += f"  ·  {t('peak')} {val_tier_name(v['peak'])}" + (f" ({v['peak_s']})" if v.get("peak_s") else "")
+    return s
 
 
 def summarize_lol(stats):
-    """LCU ranked-stats cevabını kısa özetlere çevirir."""
+    """LCU ranked-stats cevabını dilden bağımsız, küçük bir kayda çevirir (Solo/Duo, Esnek, TFT)."""
     qm = stats.get("queueMap") or {}
 
     def q(name):
         e = qm.get(name) or {}
-        t = lol_tier_tr(e.get("tier"), e.get("division"))
-        if not t:
-            return "", e
-        lp = e.get("leaguePoints", 0)
-        w, l = e.get("wins", 0), e.get("losses", 0)
-        wr = f" · %{round(100 * w / (w + l))}" if w + l else ""
-        return f"{t} · {lp} LP{wr}", e
+        tier = (e.get("tier") or "").upper()
+        if not tier or tier in ("NONE", "UNRANKED"):
+            return None, e
+        return {"t": tier, "d": e.get("division", ""), "lp": e.get("leaguePoints", 0),
+                "w": e.get("wins", 0), "l": e.get("losses", 0)}, e
 
     solo, se = q("RANKED_SOLO_5x5")
-    flex, fe = q("RANKED_FLEX_SR")
-    prev = lol_tier_tr(se.get("previousSeasonEndTier"), se.get("previousSeasonEndDivision")) \
-        or lol_tier_tr(stats.get("highestPreviousSeasonEndTier"), stats.get("highestPreviousSeasonEndDivision"))
-    if solo:
-        short = solo.split(" · %")[0]
-    elif prev:
-        short = f"Rank yok · son {prev}"
-    else:
-        short = "Rank yok"
-    return {"short": short, "solo": solo or "Rank yok", "flex": flex or "Rank yok", "prev": prev, "ts": time.time()}
+    flex, _ = q("RANKED_FLEX_SR")
+    tft, _ = q("RANKED_TFT")
+    prev = None
+    for tier, div in ((se.get("previousSeasonEndTier"), se.get("previousSeasonEndDivision")),
+                      (stats.get("highestPreviousSeasonEndTier"), stats.get("highestPreviousSeasonEndDivision"))):
+        if tier and tier.upper() not in ("NONE", "UNRANKED"):
+            prev = {"t": tier.upper(), "d": div or ""}
+            break
+    return {"k": 2, "ts": time.time(), "solo": solo, "flex": flex, "tft": tft, "prev": prev}
+
+
+def _q_text(q, wr=False):
+    if not q:
+        return t("unranked")
+    s = f"{lol_tier_name(q['t'], q['d'])} · {q.get('lp', 0)} LP"
+    games = q.get("w", 0) + q.get("l", 0)
+    if wr and games:
+        s += f" · %{round(100 * q['w'] / games)}"
+    return s
+
+
+def lol_short(l):
+    if not l:
+        return "—"
+    if "k" not in l:
+        return l.get("short", "—")
+    if l.get("solo"):
+        return _q_text(l["solo"])
+    if l.get("prev"):
+        return f"{t('unranked')} · {t('last')} {lol_tier_name(l['prev']['t'], l['prev']['d'])}"
+    return t("unranked")
+
+
+def lol_color(l):
+    if not l:
+        return None
+    if "k" not in l:
+        return _legacy_color(l.get("short", ""))
+    q = l.get("solo") or l.get("prev")
+    return LOL_COLORS.get(q["t"]) if q else None
+
+
+def lol_detail(l):
+    if not l:
+        return ""
+    if "k" not in l:
+        return f"LoL Solo/Duo: {l.get('solo', '—')}  ·  {t('flex')}: {l.get('flex', '—')}  ({ago_text(l.get('ts', time.time()))})"
+    s = f"LoL Solo/Duo: {_q_text(l.get('solo'), True)}  ·  {t('flex')}: {_q_text(l.get('flex'), True)}"
+    if l.get("tft"):
+        s += f"  ·  {t('tft')}: {_q_text(l['tft'])}"
+    if l.get("prev"):
+        s += f"  ·  {t('prev_season')} {lol_tier_name(l['prev']['t'], l['prev']['d'])}"
+    return s + f"  ({ago_text(l.get('ts', time.time()))})"
+
+
+def _legacy_color(text):
+    if not text or (text.startswith("Rank yok") and "son" not in text and "en yüksek" not in text):
+        return None
+    for word in re.findall(r"\w+", text):
+        if word in _LEGACY_COLOR:
+            return _LEGACY_COLOR[word]
+    return None
 
 
 def fetch_val_rank(region, name, tag, version):
@@ -606,23 +775,6 @@ BG, PANEL, FG, MUTED = "#0f1420", "#151c2b", "#e6edf5", "#7f8ca1"
 LINE, ROW_LINE, SEL, SEG_BG = "#232d40", "#1b2333", "#1c2740", "#0b101a"
 ACC, ACC_HOVER, ON_ACC, TITLE = "#bfe3f7", "#d6eefb", "#0c1624", "#0b0f18"
 ACCENT = ACC
-VAL_COLORS = {"Demir": "#8a8a8a", "Bronz": "#b07a3c", "Gümüş": "#b9c2c9", "Altın": "#e5b94e", "Platin": "#49b3c0",
-              "Elmas": "#c48ef5", "Yücelik": "#3fbf7f", "Ölümsüz": "#e0466a", "Radyant": "#f5e07a"}
-LOL_COLORS = {"Demir": "#7a7470", "Bronz": "#9a6240", "Gümüş": "#9aa4ad", "Altın": "#d4a94c", "Platin": "#4fa3a5",
-              "Zümrüt": "#2fbf71", "Elmas": "#6e8ff0", "Ustalık": "#b45be0", "Büyük": "#e04b4b", "Şampiyonluk": "#f2c94c"}
-
-
-def tier_color(text, cmap):
-    if not text:
-        return None
-    if text.startswith("Rank yok") and "son" not in text and "en yüksek" not in text:
-        return None
-    for word in re.findall(r"\w+", text):
-        if word in cmap:
-            return cmap[word]
-    return None
-
-
 def dark_titlebar(win):
     """Windows 10/11'de başlık çubuğunu koyu yapar."""
     try:
@@ -634,7 +786,10 @@ def dark_titlebar(win):
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(color), ctypes.sizeof(color))
     except Exception:
         pass
-GAMES = [("valorant", "Valorant"), ("league_of_legends", "LoL"), ("", "Sadece Client")]
+GAMES = [("valorant", "Valorant"), ("league_of_legends", "LoL"), ("tft", "TFT"), ("", None)]  # None -> t("client_only")
+# Riot Client'a verilecek ürün adı (TFT, LoL client'ının içinden açılır)
+PRODUCT = {"valorant": "valorant", "league_of_legends": "league_of_legends", "tft": "league_of_legends", "": ""}
+LEAGUE_GAMES = {"league_of_legends", "tft"}
 REGIONS = ["eu", "na", "ap", "kr", "latam", "br"]
 
 
@@ -670,69 +825,17 @@ class App(tk.Tk):
         self.apply_styles()
         self.after(50, lambda: dark_titlebar(self))
 
-        # oyun seçimi (segment)
+        global LANG
+        LANG = self.settings.get("lang", "en")
         self.game = tk.StringVar(value=self.settings.get("game", "valorant"))
-        seg = tk.Frame(self, bg=SEG_BG, padx=3, pady=3)
-        seg.pack(fill="x", padx=12, pady=(12, 6))
-        self.game_btns = {}
-        for code, label in GAMES:
-            b = tk.Label(seg, text=label, bg=SEG_BG, fg=MUTED, font=("Segoe UI", 9, "bold"),
-                         pady=6, cursor="hand2")
-            b.pack(side="left", expand=True, fill="x", padx=1)
-            b.bind("<Button-1>", lambda e, c=code: self.set_game(c))
-            self.game_btns[code] = b
-
         self.blitz = tk.BooleanVar(value=self.settings.get("blitz", False))
-        self.blitz_box = tk.Checkbutton(self, text="LoL ile Blitz'i de aç", variable=self.blitz,
-                                        command=self.blitz_toggled, bg=BG, fg=FG, selectcolor=PANEL,
-                                        activebackground=BG, activeforeground=FG, font=("Segoe UI", 9),
-                                        bd=0, highlightthickness=0)
-        st_row = tk.Frame(self, bg=BG)
-        st_row.pack(fill="x", padx=12, pady=(2, 6))
-        self.status_dot = tk.Label(st_row, text="●", bg=BG, fg=ACC, font=("Segoe UI", 7))
-        self.status_dot.pack(side="left")
-        self.status = tk.Label(st_row, text="", bg=BG, fg=MUTED, font=("Segoe UI", 9), anchor="w")
-        self.status.pack(side="left", padx=(4, 0))
-        self.status_row = st_row
         self.game.trace_add("write", lambda *_: (self.update_blitz_box(), self.paint_games()))
         self._last_sel = None
-
-        # hesap listesi
         self.sel_index = None
-        box = tk.Frame(self, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
-        box.pack(padx=12, fill="x")
-        head = tk.Frame(box, bg=PANEL)
-        head.pack(fill="x")
-        for col, (txt, w) in enumerate((("HESAP", 18), ("VALORANT", 20), ("LOL", 20))):
-            tk.Label(head, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w",
-                     width=w).grid(row=0, column=col, sticky="w", padx=(14 if col == 0 else 4, 4), pady=(6, 5))
-        tk.Frame(box, bg=LINE, height=1).pack(fill="x")
-        self.rows_frame = tk.Frame(box, bg=PANEL)
-        self.rows_frame.pack(fill="x")
-        self.row_widgets = []
+        self.status_text = ""
+        self.ui = None
+        self.build_ui()
 
-        # detay
-        det = tk.Frame(self, bg=BG)
-        det.pack(fill="x", padx=12, pady=(8, 0))
-        self.detail_id = tk.Label(det, text="", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w")
-        self.detail_id.pack(fill="x")
-        self.detail = tk.Label(det, text="", bg=BG, fg=MUTED, font=("Segoe UI", 9), justify="left",
-                               anchor="w", wraplength=470)
-        self.detail.pack(fill="x")
-
-        bar = tk.Frame(self, bg=BG)
-        bar.pack(fill="x", padx=12, pady=(10, 6))
-        go = tk.Label(bar, text="Giriş yap", bg=ACC, fg=ON_ACC, font=("Segoe UI", 10, "bold"), pady=8, cursor="hand2")
-        go.pack(side="left", expand=True, fill="x")
-        go.bind("<Button-1>", lambda e: self.choose())
-        go.bind("<Enter>", lambda e: go.config(bg=ACC_HOVER))
-        go.bind("<Leave>", lambda e: go.config(bg=ACC))
-        cog = tk.Label(bar, text="⚙", bg=PANEL, fg=MUTED, font=("Segoe UI", 11), width=3, cursor="hand2",
-                       highlightthickness=1, highlightbackground=LINE)
-        cog.pack(side="left", padx=(6, 0), fill="y")
-        cog.bind("<Button-1>", lambda e: self.manage())
-        tk.Label(self, text="1-9 hızlı giriş · ↑↓ seç · Enter giriş · Esc kapat", bg=BG, fg=MUTED,
-                 font=("Segoe UI", 8)).pack(pady=(0, 10))
         self.bind("<Up>", lambda e: self.move_sel(-1))
         self.bind("<Down>", lambda e: self.move_sel(1))
 
@@ -741,10 +844,7 @@ class App(tk.Tk):
         for n in range(1, 10):
             self.bind(str(n), lambda e, i=n - 1: self.quick(i))
 
-        self.paint_games()
-        self.refresh(select_last=True)
         self.sync_game()
-        self.update_blitz_box()
         self.show_detail()
         self.restore_position()
         self.protocol("WM_DELETE_WINDOW", self.close)
@@ -777,6 +877,97 @@ class App(tk.Tk):
             save_json(SETTINGS_FILE, self.settings)
         except Exception:
             pass
+
+    # ------------------------------------------------------------ arayüz
+    def build_ui(self):
+        """Ana ekranı (seçili dilde) kurar. Dil değişince baştan kurulur."""
+        if self.ui is not None:
+            self.ui.destroy()
+        self.ui = root = tk.Frame(self, bg=BG)
+        root.pack(fill="both", expand=True)
+
+        seg = tk.Frame(root, bg=SEG_BG, padx=3, pady=3)
+        seg.pack(fill="x", padx=12, pady=(12, 6))
+        self.game_btns = {}
+        for code, label in GAMES:
+            b = tk.Label(seg, text=label or t("client_only"), bg=SEG_BG, fg=MUTED, font=("Segoe UI", 9, "bold"),
+                         pady=6, cursor="hand2")
+            b.pack(side="left", expand=True, fill="x", padx=1)
+            b.bind("<Button-1>", lambda e, c=code: self.set_game(c))
+            self.game_btns[code] = b
+
+        self.blitz_box = tk.Checkbutton(root, text=t("blitz"), variable=self.blitz,
+                                        command=self.blitz_toggled, bg=BG, fg=FG, selectcolor=PANEL,
+                                        activebackground=BG, activeforeground=FG, font=("Segoe UI", 9),
+                                        bd=0, highlightthickness=0)
+        st_row = tk.Frame(root, bg=BG)
+        st_row.pack(fill="x", padx=12, pady=(2, 6))
+        self.status_dot = tk.Label(st_row, text="●", bg=BG, fg=ACC, font=("Segoe UI", 7))
+        self.status_dot.pack(side="left")
+        self.status = tk.Label(st_row, text=self.status_text, bg=BG, fg=MUTED, font=("Segoe UI", 9), anchor="w")
+        self.status.pack(side="left", padx=(4, 0))
+        # dil seçimi (EN · TR)
+        langs = tk.Frame(st_row, bg=BG)
+        langs.pack(side="right")
+        for i, code in enumerate(("en", "tr")):
+            if i:
+                tk.Label(langs, text="·", bg=BG, fg=MUTED, font=("Segoe UI", 8)).pack(side="left")
+            lb = tk.Label(langs, text=code.upper(), bg=BG, fg=ACC if LANG == code else MUTED,
+                          font=("Segoe UI", 8, "bold" if LANG == code else "normal"), cursor="hand2", padx=2)
+            lb.pack(side="left")
+            lb.bind("<Button-1>", lambda e, c=code: self.set_lang(c))
+        self.status_row = st_row
+
+        box = tk.Frame(root, bg=PANEL, highlightthickness=1, highlightbackground=LINE)
+        box.pack(padx=12, fill="x")
+        head = tk.Frame(box, bg=PANEL)
+        head.pack(fill="x")
+        for col, (txt, w) in enumerate(((t("h_account"), 18), ("VALORANT", 20), ("LOL", 20))):
+            tk.Label(head, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w",
+                     width=w).grid(row=0, column=col, sticky="w", padx=(14 if col == 0 else 4, 4), pady=(6, 5))
+        tk.Frame(box, bg=LINE, height=1).pack(fill="x")
+        self.rows_frame = tk.Frame(box, bg=PANEL)
+        self.rows_frame.pack(fill="x")
+        self.row_widgets = []
+
+        det = tk.Frame(root, bg=BG)
+        det.pack(fill="x", padx=12, pady=(8, 0))
+        self.detail_id = tk.Label(det, text="", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w")
+        self.detail_id.pack(fill="x")
+        self.detail = tk.Label(det, text="", bg=BG, fg=MUTED, font=("Segoe UI", 9), justify="left",
+                               anchor="w", wraplength=470)
+        self.detail.pack(fill="x")
+
+        bar = tk.Frame(root, bg=BG)
+        bar.pack(fill="x", padx=12, pady=(10, 6))
+        go = tk.Label(bar, text=t("login"), bg=ACC, fg=ON_ACC, font=("Segoe UI", 10, "bold"), pady=8, cursor="hand2")
+        go.pack(side="left", expand=True, fill="x")
+        go.bind("<Button-1>", lambda e: self.choose())
+        go.bind("<Enter>", lambda e: go.config(bg=ACC_HOVER))
+        go.bind("<Leave>", lambda e: go.config(bg=ACC))
+        cog = tk.Label(bar, text="⚙", bg=PANEL, fg=MUTED, font=("Segoe UI", 11), width=3, cursor="hand2",
+                       highlightthickness=1, highlightbackground=LINE)
+        cog.pack(side="left", padx=(6, 0), fill="y")
+        cog.bind("<Button-1>", lambda e: self.manage())
+        tk.Label(root, text=t("keys"), bg=BG, fg=MUTED, font=("Segoe UI", 8)).pack(pady=(0, 10))
+
+        self.paint_games()
+        self.update_blitz_box()
+        cur = self.sel_index
+        self.sel_index = None
+        self.refresh(select_last=cur is None)
+        if cur is not None:
+            self.select(cur, user=False)
+
+    def set_lang(self, code):
+        global LANG
+        if code == LANG:
+            return
+        LANG = code
+        self.settings["lang"] = code
+        save_json(SETTINGS_FILE, self.settings)
+        self.status_text = ""
+        self.build_ui()
 
     # ------------------------------------------------------------ stil
     def apply_styles(self):
@@ -867,10 +1058,8 @@ class App(tk.Tk):
             num.pack(side="left", padx=(6, 6), pady=7)
             name.pack(side="left")
             cells += [num, name]
-            v = self.rank_of(a, "val").get("short") or ("İlk girişte gelir" if not a.get("riot_id") else "—")
-            l = self.rank_of(a, "lol").get("short") or "—"
-            for text, cmap in ((v, VAL_COLORS), (l, LOL_COLORS)):
-                color = tier_color(text, cmap)
+            vr, lr = self.rank_of(a, "val"), self.rank_of(a, "lol")
+            for text, color in ((val_short(vr, bool(a.get("riot_id"))), val_color(vr)), (lol_short(lr), lol_color(lr))):
                 dot = tk.Label(row, text="●" if color else "○", bg=PANEL, fg=color or MUTED, font=("Segoe UI", 8))
                 lab = tk.Label(row, text=text, bg=PANEL, fg=FG if color else MUTED, font=("Segoe UI", 9),
                                anchor="w", width=17)
@@ -893,25 +1082,12 @@ class App(tk.Tk):
             return
         a = self.accounts[i]
         v, l = self.rank_of(a, "val"), self.rank_of(a, "lol")
-        self.detail_id.config(text=a.get("riot_id") or "Riot ID bu hesapla ilk girişte kendiliğinden eklenecek")
-        lines = []
-        if v:
-            s = f"Valorant: {v.get('current', '—')}"
-            if v.get("last"):
-                s += f"  ·  son sezon {v['last']}"
-            if v.get("peak"):
-                s += f"  ·  en yüksek {v['peak']}"
-            lines.append(s)
-        if l:
-            s = f"LoL Solo/Duo: {l.get('solo', '—')}  ·  Esnek: {l.get('flex', '—')}"
-            if l.get("prev"):
-                s += f"  ·  geçen sezon {l['prev']}"
-            ago = int((time.time() - l.get("ts", time.time())) / 3600)  # eski sürümlerden kalan son bilgi
-            s += f"  ({'az önce' if ago < 1 else f'{ago} saat önce' if ago < 48 else f'{ago // 24} gün önce'})"
-            lines.append(s)
+        self.detail_id.config(text=a.get("riot_id") or t("rid_pending"))
+        lines = [x for x in (val_detail(v), lol_detail(l)) if x]
         self.detail.config(text="\n".join(lines))
 
     def set_status(self, text):
+        self.status_text = text
         try:
             self.status.config(text=text)
         except tk.TclError:
@@ -932,7 +1108,8 @@ class App(tk.Tk):
             if not name:
                 continue
             k = self.key_of(a)
-            last = self.rank_of(a, "val").get("ts", 0)
+            old = self.rank_of(a, "val")
+            last = old.get("ts", 0) if "k" in old else 0  # eski biçimli kayıtlar yenilenir
             pts = played.get(k, 0)
             if force:
                 ver = str(int(now))
@@ -961,7 +1138,7 @@ class App(tk.Tk):
                         break                       # sunucu yoğun: kalanları sonraki açılışa bırak
                     if e.code == 404:
                         with self.rank_lock:
-                            self.ranks.setdefault(k, {})["val"] = {"short": "Riot ID bulunamadı", "current": "Riot ID bulunamadı", "ts": time.time()}
+                            self.ranks.setdefault(k, {})["val"] = {"k": 2, "nf": True, "ts": time.time()}
                             save_json(RANK_FILE, self.ranks)
                         self.ranks_dirty = True
                     else:
@@ -970,11 +1147,11 @@ class App(tk.Tk):
                     failed += 1
                 time.sleep(1.0)                     # sunucuya nazik ol
             if busy:
-                self.ui_msg = "Rank sunucusu yoğun, kalan rank'lar sonraki açılışta güncellenecek"
+                self.ui_msg = t("srv_busy")
             elif failed:
-                self.ui_msg = "Bazı Valorant rank'ları alınamadı (internet bağlantısını kontrol et)"
+                self.ui_msg = t("val_fail")
             else:
-                self.ui_msg = "Valorant rank'ları güncel"
+                self.ui_msg = t("val_ok")
             self.ranks_dirty = True
 
         threading.Thread(target=work, daemon=True).start()
@@ -991,9 +1168,8 @@ class App(tk.Tk):
             self.ui_msg = ""
         if self.update_info and self.pending is None and self.state() != "withdrawn":
             info, self.update_info = self.update_info, None
-            notes = info.get("notes", "")
-            if messagebox.askyesno("Gemlock güncellemesi",
-                                   f"Yeni sürüm var: {info['version']} (şu an {VERSION})\n\n{notes}\n\nŞimdi güncellensin mi?",
+            notes = info.get("notes_en" if LANG == "en" else "notes", "") or info.get("notes", "")
+            if messagebox.askyesno(t("upd_title"), t("upd_q", new=info["version"], cur=VERSION, notes=notes),
                                    parent=self):
                 self.apply_update(info)
                 return
@@ -1007,16 +1183,16 @@ class App(tk.Tk):
                 if ver_tuple(info.get("version")) > ver_tuple(VERSION):
                     self.update_info = info
                 elif manual:
-                    self.ui_msg = f"Gemlock güncel · sürüm {VERSION}"
+                    self.ui_msg = t("upd_ok", v=VERSION)
             except Exception:
                 if manual:
-                    self.ui_msg = "Güncelleme kontrol edilemedi (internet bağlantısını kontrol et)"
+                    self.ui_msg = t("upd_fail_check")
 
         threading.Thread(target=work, daemon=True).start()
 
     def apply_update(self, info):
         import hashlib
-        self.set_status(f"Sürüm {info['version']} indiriliyor…")
+        self.set_status(t("upd_dl", v=info["version"]))
         self.update_idletasks()
         try:
             data = gh_raw(info.get("file", "gemlock.pyw"))
@@ -1028,7 +1204,7 @@ class App(tk.Tk):
                 f.write(data)
             os.replace(INSTALLED_SCRIPT + ".tmp", INSTALLED_SCRIPT)
         except Exception as e:
-            messagebox.showerror("Güncelleme başarısız", f"Güncelleme kurulamadı: {e}\nEski sürüm çalışmaya devam ediyor.",
+            messagebox.showerror(t("upd_fail_t"), t("upd_fail", e=e),
                                  parent=self)
             self.after(500, self.poll_ui)
             return
@@ -1128,17 +1304,17 @@ class App(tk.Tk):
     # ------------------------------------------------------------- Riot
     def start_riot(self):
         if user32.FindWindowW(None, "Riot Client"):
-            self.set_status("Riot Client açık · hesabını seç")
+            self.set_status(t("rc_open"))
             return
         exe = find_riot_exe()
         if exe:
-            product = self.game.get()
+            product = PRODUCT.get(self.game.get(), "")
             args = [exe] + ([f"--launch-product={product}", "--launch-patchline=live"] if product else [])
             subprocess.Popen(args, close_fds=True)
             self.riot_product = product
-            self.set_status("Riot Client açılıyor… hesabı şimdiden seçebilirsin")
+            self.set_status(t("rc_opening"))
         else:
-            self.set_status("Riot Client bulunamadı, kendin aç")
+            self.set_status(t("rc_missing"))
 
     def tick(self):
         hwnd = riot_hwnd()
@@ -1154,7 +1330,7 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ seçim
     def update_blitz_box(self):
-        if self.game.get() == "league_of_legends":
+        if self.game.get() in LEAGUE_GAMES:
             self.blitz_box.pack(anchor="w", padx=10, before=self.status_row)
         else:
             self.blitz_box.pack_forget()
@@ -1162,7 +1338,7 @@ class App(tk.Tk):
     def blitz_toggled(self):
         self.settings["blitz"] = self.blitz.get()
         if self.blitz.get() and not find_blitz_exe(self.settings.get("blitz_path")):
-            path = filedialog.askopenfilename(parent=self, title="Blitz.exe dosyasını seç",
+            path = filedialog.askopenfilename(parent=self, title=t("blitz_pick"),
                                               filetypes=[("Blitz", "Blitz.exe"), ("Programlar", "*.exe")])
             if path:
                 self.settings["blitz_path"] = path
@@ -1199,7 +1375,7 @@ class App(tk.Tk):
 
     def tell_riot_product(self):
         """Giriş yapılmadan önce Riot Client'ı seçilen oyuna çevirir (giriş ekranı o oyunun teması olur)."""
-        product = self.game.get()
+        product = PRODUCT.get(self.game.get(), "")
         if not product or self.logged_in or product == self.riot_product:
             return
         exe = find_riot_exe()
@@ -1218,7 +1394,7 @@ class App(tk.Tk):
         self.accounts[i]["game"] = self.game.get()
         save_json(DATA_FILE, self.accounts)
         if not riot_hwnd() or (self.riot_seen_at and time.time() - self.riot_seen_at <= 4):
-            self.set_status(f"Riot hazır olunca '{self.accounts[i]['name']}' girilecek…")
+            self.set_status(t("pending", name=self.accounts[i]["name"]))
 
     # ------------------------------------------------------------ giriş
     def do_login(self, hwnd, i):
@@ -1226,7 +1402,7 @@ class App(tk.Tk):
         try:
             pw = decrypt(a["pw"])
         except OSError as e:
-            messagebox.showerror("Hata", str(e), parent=self)
+            messagebox.showerror(t("err"), str(e), parent=self)
             self.pending = None
             self.after(300, self.tick)
             return
@@ -1265,14 +1441,11 @@ class App(tk.Tk):
             self.logged_in = False
             self.pending = None
             self.deiconify()
-            messagebox.showwarning(
-                "Giriş durduruldu",
-                "Riot Client öne gelmediği için güvenlik amacıyla şifre yazılmadı.\n"
-                "Riot penceresine bir kez tıklayıp tekrar 'Giriş yap'a bas.", parent=self)
+            messagebox.showwarning(t("stop_t"), t("stop"), parent=self)
             self.after(300, self.tick)
             return
 
-        product = self.game.get()
+        product = PRODUCT.get(self.game.get(), "")
 
         # Önce Riot ID ve Valorant rank'ı (Play'den önce, sadece Riot Client'tan), sonra oyunu başlat.
         # Oyun açıldığı an Gemlock kapanır; oyun açıkken hiçbir şey okunmaz.
@@ -1341,8 +1514,8 @@ class App(tk.Tk):
         win.attributes("-topmost", True)
         win.grab_set()
         win.resizable(False, False)
-        rows = [("Etiket (örn. Main)", name, False), ("Kullanıcı adı", user, False),
-                ("Şifre", pw, True), ("Riot ID (isim#etiket)", rid, False)]
+        rows = [(t("f_label"), name, False), (t("f_user"), user, False),
+                (t("f_pw"), pw, True), (t("f_rid"), rid, False)]
         vars_ = []
         for r, (label, val, secret) in enumerate(rows):
             ttk.Label(win, text=label).grid(row=r, column=0, padx=8, pady=6, sticky="w")
@@ -1352,8 +1525,7 @@ class App(tk.Tk):
             if r == 0:
                 e.focus_set()
             vars_.append(v)
-        ttk.Label(win, text="İsteğe bağlı. Boş bırakırsan bu hesapla Gemlock üzerinden ilk girişte "
-                            "kendiliğinden dolar (örn. Oyuncu#TR1).",
+        ttk.Label(win, text=t("rid_hint"),
                   wraplength=330, foreground=MUTED).grid(row=4, column=0, columnspan=2, padx=8, sticky="w")
         result = {}
 
@@ -1362,13 +1534,13 @@ class App(tk.Tk):
             win.destroy()
 
         win.bind("<Return>", ok)
-        ttk.Button(win, text="Kaydet", command=ok).grid(row=5, column=0, columnspan=2, pady=10)
+        ttk.Button(win, text=t("save"), command=ok).grid(row=5, column=0, columnspan=2, pady=10)
         parent.wait_window(win)
         return result.get("v")
 
     def manage(self):
         win = tk.Toplevel(self)
-        win.title("Gemlock · Ayarlar ve Hesaplar")
+        win.title(t("manage_t"))
         win.configure(bg=BG)
         win.after(50, lambda: dark_titlebar(win))
         win.attributes("-topmost", True)
@@ -1390,7 +1562,7 @@ class App(tk.Tk):
             return s[0] if s else None
 
         def add():
-            r = self.dialog(win, "Hesap ekle")
+            r = self.dialog(win, t("add_t"))
             if r and r[1] and r[2]:
                 self.accounts.append({"name": r[0] or r[1], "user": r[1], "pw": encrypt(r[2]), "riot_id": r[3]})
                 save_json(DATA_FILE, self.accounts)
@@ -1402,7 +1574,7 @@ class App(tk.Tk):
             if i is None:
                 return
             a = self.accounts[i]
-            r = self.dialog(win, "Hesabı düzenle", a["name"], a["user"], decrypt(a["pw"]), a.get("riot_id", ""))
+            r = self.dialog(win, t("edit_t"), a["name"], a["user"], decrypt(a["pw"]), a.get("riot_id", ""))
             if r and r[1] and r[2]:
                 self.accounts[i] = {**a, "name": r[0] or r[1], "user": r[1], "pw": encrypt(r[2]), "riot_id": r[3]}
                 save_json(DATA_FILE, self.accounts)
@@ -1411,7 +1583,7 @@ class App(tk.Tk):
 
         def remove():
             i = sel()
-            if i is not None and messagebox.askyesno("Sil", f"'{self.accounts[i]['name']}' silinsin mi?", parent=win):
+            if i is not None and messagebox.askyesno(t("del_t"), t("del_q", name=self.accounts[i]["name"]), parent=win):
                 del self.accounts[i]
                 save_json(DATA_FILE, self.accounts)
                 fill()
@@ -1427,50 +1599,50 @@ class App(tk.Tk):
 
         bar = ttk.Frame(win)
         bar.pack(fill="x", padx=10, pady=(0, 10))
-        for text, cmd in (("Ekle", add), ("Düzenle", edit), ("Sil", remove),
+        for text, cmd in ((t("b_add"), add), (t("b_edit"), edit), (t("b_del"), remove),
                           ("▲", lambda: move(-1)), ("▼", lambda: move(1))):
             ttk.Button(bar, text=text, command=cmd, width=7 if len(text) > 1 else 3).pack(side="left", padx=2)
 
-        box = ttk.LabelFrame(win, text="Valorant rank")
+        box = ttk.LabelFrame(win, text=t("val_box"))
         box.pack(fill="x", padx=10, pady=(0, 10))
-        ttk.Label(box, text="Anahtar gerekmez; rank'lar Gemlock sunucusundan gelir.", foreground=MUTED).grid(
+        ttk.Label(box, text=t("val_nokey"), foreground=MUTED).grid(
             row=0, column=0, columnspan=2, padx=6, pady=(4, 2), sticky="w")
-        ttk.Label(box, text="Bölge").grid(row=1, column=0, padx=6, pady=4, sticky="w")
+        ttk.Label(box, text=t("region")).grid(row=1, column=0, padx=6, pady=4, sticky="w")
         regv = tk.StringVar(value=self.settings.get("region", "eu"))
         ttk.Combobox(box, textvariable=regv, values=REGIONS, state="readonly", width=8).grid(
             row=1, column=1, padx=6, pady=4, sticky="w")
-        ttk.Label(box, text="Türkiye sunucusu için 'eu' seç.", foreground=MUTED).grid(
+        ttk.Label(box, text=t("region_hint"), foreground=MUTED).grid(
             row=2, column=0, columnspan=2, padx=6, sticky="w")
 
         def save_region():
             self.settings["region"] = regv.get()
             self.settings.pop("henrik_key", None)  # eski sürümlerden kalan anahtar artık kullanılmıyor
             save_json(SETTINGS_FILE, self.settings)
-            self.set_status("Valorant rank'ları yenileniyor…")
+            self.set_status(t("val_refreshing"))
             self.refresh_val_async(force=True)
 
-        ttk.Button(box, text="Kaydet ve rank'ları şimdi yenile", command=save_region).grid(
+        ttk.Button(box, text=t("val_save"), command=save_region).grid(
             row=3, column=0, columnspan=2, padx=6, pady=6, sticky="we")
 
-        up = ttk.LabelFrame(win, text="Güncelleme")
+        up = ttk.LabelFrame(win, text=t("upd_box"))
         up.pack(fill="x", padx=10, pady=(0, 10))
-        ttk.Label(up, text=f"Sürüm {VERSION} · her açılışta yeni sürüm otomatik kontrol edilir.",
+        ttk.Label(up, text=t("upd_info", v=VERSION),
                   foreground=MUTED).grid(row=0, column=0, padx=6, pady=4, sticky="w")
 
         def check_now():
-            self.set_status("Güncelleme kontrol ediliyor…")
+            self.set_status(t("upd_checking"))
             self.check_update_async(manual=True)
 
-        ttk.Button(up, text="Şimdi kontrol et", command=check_now).grid(row=1, column=0, padx=6, pady=6, sticky="we")
+        ttk.Button(up, text=t("upd_now"), command=check_now).grid(row=1, column=0, padx=6, pady=6, sticky="we")
         up.columnconfigure(0, weight=1)
 
         def shortcut():
             if create_desktop_shortcut(INSTALLED_SCRIPT if os.path.exists(INSTALLED_SCRIPT) else None):
-                messagebox.showinfo("Tamam", "Masaüstüne 'Gemlock' kısayolu oluşturuldu.", parent=win)
+                messagebox.showinfo(t("sc_ok_t"), t("sc_ok"), parent=win)
             else:
-                messagebox.showerror("Hata", "Kısayol oluşturulamadı.", parent=win)
+                messagebox.showerror(t("err"), t("sc_fail"), parent=win)
 
-        ttk.Button(win, text="Masaüstüne simgeli kısayol oluştur", command=shortcut).pack(fill="x", padx=10, pady=(0, 10))
+        ttk.Button(win, text=t("sc_btn"), command=shortcut).pack(fill="x", padx=10, pady=(0, 10))
         fill()
 
 

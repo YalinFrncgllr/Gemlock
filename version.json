@@ -1,6 +1,7 @@
 {
-  "version": "1.5.3",
+  "version": "1.6.0",
   "file": "gemlock.pyw",
-  "sha256": "36413175aec128fbcea0d478944d79a05336e23d9e96ef950497d578f393499b",
-  "notes": "LoL rank'ları yeniden güncelleniyor: LoL client'ı açılınca okunuyor, maç başlarsa Gemlock anında kapanıyor. Güncellemeler artık gecikmesiz."
+  "sha256": "ddd62ba092ba6665a13ecdfb75dc288e48d9ba09bab98bcdb29dd9dcab77c6d3",
+  "notes": "İngilizce / Türkçe dil seçeneği (ana ekranda EN · TR), TFT seçeneği ve TFT rank'ı.",
+  "notes_en": "English / Turkish language switch (EN · TR on the main screen), TFT option and TFT rank."
 }
