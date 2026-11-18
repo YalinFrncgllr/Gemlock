@@ -1,7 +1,7 @@
 {
-  "version": "2.1.0",
+  "version": "2.2.0",
   "file": "gemlock.pyw",
-  "sha256": "826d3bc2e07d78730ae4b40820a48084ebff640e59307b8cf8567ab999733f70",
-  "notes": "Her hesabın bölgesi ilk girişte otomatik bulunuyor (elle de seçilebilir), isimlerin yanında bölge etiketi, seçili oyunun sütunu öne çıkıyor, seçili oyuna göre sıralama, hesap sabitleme (sağ tık).",
-  "notes_en": "Each account's region is detected on first login (or set manually), region tags next to names, the selected game's column is highlighted, sorting by the selected game, and pinning accounts (right-click)."
+  "sha256": "2039e54e23f3fecf55808126cc5831271995a791566d383e7d3b27e1c9a503df",
+  "notes": "Rank değişimi (+18 RR, −20 LP; kademe değişince ▲/▼), Riot ID'yi tek tıkla kopyalama, detayda son oynama zamanı.",
+  "notes_en": "Rank changes (+18 RR, −20 LP; ▲/▼ when the tier changes), one-click Riot ID copy, last played time in the details."
 }

@@ -1,5 +1,5 @@
 """
-Gemlock 2.1.0 — Riot hesap yöneticisi
+Gemlock 2.2.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -48,7 +48,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "2.1.0"
+VERSION = "2.2.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -488,6 +488,9 @@ STR = {
         "sc_fail": "Could not create the shortcut.", "sc_btn": "Create desktop shortcut",
         "dpapi": "Could not decrypt (it may belong to another Windows user)",
         "add_account": "+  Add account", "logging_in": "Logging in…", "f_region": "Region",
+        "copy": "Copy", "copied": "Riot ID copied", "last_played": "Last played through Gemlock: {ago}",
+        "never_played": "Not played through Gemlock yet", "since_last": "since last time", "rank_up": "ranked up",
+        "rank_down": "ranked down",
         "auto": "Auto", "pin": "Pin to top", "unpin": "Unpin", "sort_game": "Sort by the selected game",
         "sort_hint": "Accounts with ranks in the selected game come first; pinned accounts always stay on top.",
         "sec_list": "Account list", "region_auto_hint": "Gemlock detects each account's region on its first login.", "minimize": "Minimize", "close": "Close", "show": "Show", "hide": "Hide", "settings": "Settings", "back": "←  Back", "sec_general": "General",
@@ -530,6 +533,9 @@ STR = {
         "sc_fail": "Kısayol oluşturulamadı.", "sc_btn": "Masaüstüne simgeli kısayol oluştur",
         "dpapi": "Şifre çözülemedi (başka bir Windows kullanıcısına ait olabilir)",
         "add_account": "+  Hesap ekle", "logging_in": "Giriş yapılıyor…", "f_region": "Bölge",
+        "copy": "Kopyala", "copied": "Riot ID kopyalandı", "last_played": "Gemlock ile son oynama: {ago}",
+        "never_played": "Henüz Gemlock ile oynanmadı", "since_last": "son seferden beri", "rank_up": "rank atladı",
+        "rank_down": "rank düştü",
         "auto": "Otomatik", "pin": "En üste sabitle", "unpin": "Sabitlemeyi kaldır", "sort_game": "Seçili oyuna göre sırala",
         "sort_hint": "Seçili oyunda rank'ı olan hesaplar üstte; sabitlenen hesaplar her zaman en üstte.",
         "sec_list": "Hesap listesi", "region_auto_hint": "Gemlock her hesabın bölgesini ilk girişte kendisi bulur.", "minimize": "Küçült", "close": "Kapat", "show": "Göster", "hide": "Gizle", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
@@ -819,6 +825,57 @@ def lol_detail(l):
     if l.get("prev"):
         s += f"  ·  {t('prev_season')} {lol_tier_name(l['prev']['t'], l['prev']['d'])}"
     return s + f"  ({ago_text(l.get('ts', time.time()))})"
+
+
+LOL_ORDER = ["IRON", "BRONZE", "SILVER", "GOLD", "PLATINUM", "EMERALD", "DIAMOND", "MASTER", "GRANDMASTER",
+             "CHALLENGER"]
+LOL_DIV = {"IV": 0, "III": 1, "II": 2, "I": 3}
+CHANGE_KEEP_SEC = 24 * 3600  # değişim etiketi 24 saat görünür
+
+
+def val_score(v):
+    """Valorant: kademe*100 + RR (aynı kademe içinde fark = RR farkı)."""
+    n = val_tier_num(v.get("cur")) if v and v.get("cur") else None
+    return None if n is None else (n * 100 + int(v.get("rr") or 0), n)
+
+
+def lol_score(q):
+    """LoL: kademe ve küme sırası + LP (aynı küme içinde fark = LP farkı)."""
+    if not q or q.get("t") not in LOL_ORDER:
+        return None
+    step = LOL_ORDER.index(q["t"]) * 4 + LOL_DIV.get(q.get("d") or "", 0)
+    return step * 100 + int(q.get("lp") or 0), step
+
+
+def with_change(old, new, kind):
+    """Yeni rank kaydına, eskisine göre değişimi ekler (24 saat boyunca gösterilir)."""
+    now = time.time()
+    try:
+        if kind == "val":
+            o, n = val_score(old), val_score(new)
+        else:
+            o = lol_score((old or {}).get("solo")) if "k" in (old or {}) else None
+            n = lol_score(new.get("solo"))
+        if o and n and o[0] != n[0]:
+            new["chg"] = {"d": n[0] - o[0], "same": o[1] == n[1], "ts": now}
+        elif old and old.get("chg") and now - old["chg"].get("ts", 0) < CHANGE_KEEP_SEC:
+            new["chg"] = old["chg"]
+    except Exception:
+        pass
+    return new
+
+
+def change_badge(rec, unit):
+    """('+18', '#4ade80') gibi kısa etiket ve renk; değişim yoksa None."""
+    c = (rec or {}).get("chg")
+    if not c or time.time() - c.get("ts", 0) > CHANGE_KEEP_SEC:
+        return None
+    up = c["d"] > 0
+    color = "#4ade80" if up else "#f87171"
+    if c.get("same"):
+        return (f"{'+' if up else '−'}{abs(c['d'])}", color,
+                f"{'+' if up else '−'}{abs(c['d'])} {unit}")
+    return ("▲" if up else "▼", color, t("rank_up") if up else t("rank_down"))
 
 
 def _legacy_color(text):
@@ -1117,7 +1174,7 @@ def dark_titlebar(win):
     except Exception:
         pass
 # Hesap listesinin sütunları (piksel): başlık ve satırlar aynı genişlikleri kullanır, böylece hizalı kalır
-COL_W = {"bar": 3, "num": 26, "name": 150, "vi": 24, "vt": 140, "li": 24, "lt": 124, "ti": 24, "tt": 110}
+COL_W = {"bar": 3, "num": 26, "name": 146, "vi": 24, "vt": 140, "li": 24, "lt": 136, "ti": 24, "tt": 102}
 ROW_H = 34
 GAMES = [("valorant", "Valorant"), ("league_of_legends", "LoL"), ("tft", "TFT"), ("", None)]  # None -> t("client_only")
 # Riot Client'a verilecek ürün adı (TFT, LoL client'ının içinden açılır)
@@ -1316,8 +1373,13 @@ class App(tk.Tk):
 
         det = tk.Frame(root, bg=BG)
         det.pack(fill="x", padx=14, pady=(10, 0))
-        self.detail_id = tk.Label(det, text="", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w")
-        self.detail_id.pack(fill="x")
+        id_row = tk.Frame(det, bg=BG)
+        id_row.pack(fill="x")
+        self.detail_id = tk.Label(id_row, text="", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w")
+        self.detail_id.pack(side="left")
+        self.copy_btn = tk.Label(id_row, text=t("copy"), bg=BG, fg=ACC, font=("Segoe UI", 8, "bold"), cursor="hand2")
+        self.copy_btn.bind("<Button-1>", lambda e: self.copy_riot_id())
+        self.detail_id.bind("<Button-1>", lambda e: self.copy_riot_id())
         self.detail = tk.Label(det, text="", bg=BG, fg=MUTED, font=("Segoe UI", 9), justify="left",
                                anchor="w", wraplength=sum(COL_W.values()) - 8)
         self.detail.pack(fill="x")
@@ -1611,6 +1673,7 @@ class App(tk.Tk):
                 cells.append(rtag)
             vr, lr = self.rank_of(a, "val"), self.rank_of(a, "lol")
             warn = bool(self.decay_days(a))
+            badges = {"vt": change_badge(vr, "RR"), "lt": change_badge(lr, "LP"), "tt": None}
             for (text, color, ikey), (wi, wt) in (
                     ((val_short(vr, bool(a.get("riot_id"))), val_color(vr), val_icon_key(vr)), ("vi", "vt")),
                     ((("⚠ " if warn else "") + lol_short(lr), lol_color(lr), lol_icon_key(lr)), ("li", "lt")),
@@ -1625,11 +1688,17 @@ class App(tk.Tk):
                 ct = cell(row, COL_W[wt])
                 # seçili oyunun sütunu öne çıkar, diğerleri bir ton soluk
                 base = FG if (focus_col is None or wt == focus_col) else "#b5b5b5"
-                lab = tk.Label(ct, text=fit_text(text, small_font, COL_W[wt] - 6), bg=PANEL,
+                badge = badges.get(wt)
+                room = COL_W[wt] - 6 - (26 if badge else 0)
+                lab = tk.Label(ct, text=fit_text(text, small_font, room), bg=PANEL,
                                fg=WARN if (warn and wt == "lt") else (base if color else MUTED), font=small_font,
                                anchor="w")
-                lab.pack(fill="both", expand=True, padx=(2, 0))
+                lab.pack(side="left", fill="y", padx=(2, 0))
                 cells += [ci, dot, ct, lab]
+                if badge:
+                    bl = tk.Label(ct, text=badge[0], bg=PANEL, fg=badge[1], font=("Segoe UI", 7, "bold"))
+                    bl.pack(side="left", padx=(4, 0))
+                    cells.append(bl)
             targets = [row, bar] + cells + (chip.parts() if chip else [])
             for w in targets:
                 w.bind("<Button-3>", lambda e, k=i: self.row_menu(e, k))
@@ -1648,11 +1717,36 @@ class App(tk.Tk):
             return
         a = self.accounts[i]
         v, l = self.rank_of(a, "val"), self.rank_of(a, "lol")
-        self.detail_id.config(text=a.get("riot_id") or t("rid_pending"))
-        lines = [x for x in (val_detail(v), lol_detail(l)) if x]
+        rid = a.get("riot_id")
+        self.detail_id.config(text=rid or t("rid_pending"), cursor="hand2" if rid else "")
+        if rid:
+            if not self.copy_btn.winfo_ismapped():
+                self.copy_btn.pack(side="left", padx=(8, 0))
+        else:
+            self.copy_btn.pack_forget()
+        vline, lline = val_detail(v), lol_detail(l)
+        vb, lb = change_badge(v, "RR"), change_badge(l, "LP")
+        if vline and vb:
+            vline += f"  ({vb[2]}, {t('since_last')})"
+        if lline and lb:
+            lline += f"  ({lb[2]}, {t('since_last')})"
+        lines = [x for x in (vline, lline) if x]
+        played = self.settings.get("played", {}).get(self.key_of(a))
+        lines.append(t("last_played", ago=ago_text(played)) if played else t("never_played"))
         if self.decay_days(a):
             lines.append("⚠ " + t("decay", n=self.decay_days(a)))
         self.detail.config(text="\n".join(lines))
+
+    def copy_riot_id(self):
+        i = self.selected()
+        rid = self.accounts[i].get("riot_id") if i is not None else None
+        if not rid:
+            return
+        self.clipboard_clear()
+        self.clipboard_append(rid)
+        self.set_status(t("copied"))
+        self.copy_btn.config(text="✓")
+        self.after(1500, lambda: self.copy_btn.config(text=t("copy")))
 
     def set_status(self, text):
         self.status_text = text
@@ -1697,7 +1791,7 @@ class App(tk.Tk):
                 try:
                     summ = summarize_val(fetch_val_rank(reg, name, tag, ver))
                     with self.rank_lock:
-                        self.ranks.setdefault(k, {})["val"] = summ
+                        self.ranks.setdefault(k, {})["val"] = with_change(self.ranks.get(k, {}).get("val"), summ, "val")
                         save_json(RANK_FILE, self.ranks)
                     self.ranks_dirty = True
                 except urllib.error.HTTPError as e:
@@ -1865,7 +1959,8 @@ class App(tk.Tk):
                 reg = affinity_of(acc or {}, self.settings.get("region", "eu"))
                 summ = summarize_val(fetch_val_rank(reg, name, tag, f"p{int(played)}"))
                 with self.rank_lock:
-                    self.ranks.setdefault(user_key, {})["val"] = summ
+                    self.ranks.setdefault(user_key, {})["val"] = with_change(
+                        self.ranks.get(user_key, {}).get("val"), summ, "val")
                     save_json(RANK_FILE, self.ranks)
             except Exception:
                 pass
@@ -1917,7 +2012,8 @@ class App(tk.Tk):
                     continue
                 summ = summarize_lol(lcu.get(f"/lol-ranked/v1/ranked-stats/{puuid}"))
                 with self.rank_lock:
-                    self.ranks.setdefault(self.key_of(a), {})["lol"] = summ
+                    self.ranks.setdefault(self.key_of(a), {})["lol"] = with_change(
+                        self.ranks.get(self.key_of(a), {}).get("lol"), summ, "lol")
                     save_json(RANK_FILE, self.ranks)
             except Exception:
                 continue
