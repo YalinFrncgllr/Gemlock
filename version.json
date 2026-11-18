@@ -1,7 +1,7 @@
 {
-  "version": "1.6.0",
+  "version": "1.7.0",
   "file": "gemlock.pyw",
-  "sha256": "ddd62ba092ba6665a13ecdfb75dc288e48d9ba09bab98bcdb29dd9dcab77c6d3",
-  "notes": "İngilizce / Türkçe dil seçeneği (ana ekranda EN · TR), TFT seçeneği ve TFT rank'ı.",
-  "notes_en": "English / Turkish language switch (EN · TR on the main screen), TFT option and TFT rank."
+  "sha256": "3ab18e4194f86b361c9f1724f62e2a1d8e6e2378232d144cc698442ab4f1572b",
+  "notes": "Rank sembolleri: listede renkli nokta yerine oyundaki rank sembolleri görünüyor.",
+  "notes_en": "Rank emblems: the list now shows the in-game rank emblems instead of colored dots."
 }

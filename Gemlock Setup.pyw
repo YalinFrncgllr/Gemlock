@@ -1,5 +1,5 @@
 """
-Gemlock 1.6.0 — Riot hesap yöneticisi
+Gemlock 1.7.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -46,7 +46,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.6.0"
+VERSION = "1.7.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -563,6 +563,79 @@ def lol_tier_name(tier, div=""):
     return f"{name} {ROMAN.get(div or '', '')}".strip()
 
 
+# Rank sembolleri: Riot'un orijinal görselleri, hayran araçlarının kullandığı kaynaklardan bir kez indirilip
+# %LOCALAPPDATA%/Gemlock/rank-icons içinde saklanır.
+RANK_ICON_DIR = os.path.join(os.environ.get("LOCALAPPDATA", "."), "Gemlock", "rank-icons")
+VAL_ICON_URL = "https://media.valorant-api.com/competitivetiers/03621f52-342b-cf4e-4f86-9350a49c6d04/{n}/smallicon.png"
+LOL_ICON_URLS = ["https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-shared-components/global/default/{t}.png",
+                 "https://raw.communitydragon.org/latest/plugins/rcp-fe-lol-static-assets/global/default/images/ranked-mini-crests/{t}.png"]
+_VAL_BASE = {"Iron": 3, "Bronze": 6, "Silver": 9, "Gold": 12, "Platinum": 15, "Diamond": 18,
+             "Ascendant": 21, "Immortal": 24}
+
+
+def val_tier_num(name):
+    """'Diamond 2' -> 19 (Valorant kademe numarası), 'Radiant' -> 27."""
+    parts = (name or "").split()
+    if not parts:
+        return None
+    if parts[0] == "Radiant":
+        return 27
+    base = _VAL_BASE.get(parts[0])
+    if base is None:
+        return None
+    try:
+        return base + int(parts[1]) - 1 if len(parts) > 1 else base
+    except ValueError:
+        return base
+
+
+def val_icon_key(v):
+    if not v or "k" not in v:
+        return None
+    for f in ("cur", "last", "peak"):
+        if v.get(f):
+            n = val_tier_num(v[f])
+            return f"val_{n}" if n else None
+    return None
+
+
+def lol_icon_key(l):
+    if not l or "k" not in l:
+        return None
+    q = l.get("solo") or l.get("prev")
+    return f"lol_{q['t'].lower()}" if q else None
+
+
+def icon_path(key):
+    return os.path.join(RANK_ICON_DIR, key + ".png")
+
+
+def download_icon(key):
+    """Sembolü bir kez indirir; zaten varsa dokunmaz."""
+    path = icon_path(key)
+    if os.path.exists(path):
+        return True
+    if key.startswith("val_"):
+        urls = [VAL_ICON_URL.format(n=key[4:])]
+    else:
+        urls = [u.format(t=key[4:]) for u in LOL_ICON_URLS]
+    os.makedirs(RANK_ICON_DIR, exist_ok=True)
+    for url in urls:
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Gemlock"})
+            with urllib.request.urlopen(req, timeout=15) as r:
+                data = r.read()
+            if data[:8] != b"\x89PNG\r\n\x1a\n":
+                continue
+            with open(path + ".tmp", "wb") as f:
+                f.write(data)
+            os.replace(path + ".tmp", path)
+            return True
+        except Exception:
+            continue
+    return False
+
+
 def ago_text(ts):
     h = int((time.time() - ts) / 3600)
     return t("just_now") if h < 1 else t("hours_ago", n=h) if h < 48 else t("days_ago", n=h // 24)
@@ -821,6 +894,7 @@ class App(tk.Tk):
         self.logged_in = False
         self.riot_product = None
         self.update_info = None
+        self.icon_imgs = {}
 
         self.apply_styles()
         self.after(50, lambda: dark_titlebar(self))
@@ -854,6 +928,7 @@ class App(tk.Tk):
         self.start_riot()
         self.refresh_val_async()
         self.check_update_async()
+        self.fetch_icons_async()
         self.after(300, self.tick)
         self.after(500, self.poll_ui)
         if JUST_INSTALLED:
@@ -1059,8 +1134,13 @@ class App(tk.Tk):
             name.pack(side="left")
             cells += [num, name]
             vr, lr = self.rank_of(a, "val"), self.rank_of(a, "lol")
-            for text, color in ((val_short(vr, bool(a.get("riot_id"))), val_color(vr)), (lol_short(lr), lol_color(lr))):
-                dot = tk.Label(row, text="●" if color else "○", bg=PANEL, fg=color or MUTED, font=("Segoe UI", 8))
+            for text, color, ikey in ((val_short(vr, bool(a.get("riot_id"))), val_color(vr), val_icon_key(vr)),
+                                      (lol_short(lr), lol_color(lr), lol_icon_key(lr))):
+                img = self.rank_icon(ikey)
+                if img is not None:
+                    dot = tk.Label(row, image=img, bg=PANEL, width=18, height=18)
+                else:
+                    dot = tk.Label(row, text="●" if color else "○", bg=PANEL, fg=color or MUTED, font=("Segoe UI", 8))
                 lab = tk.Label(row, text=text, bg=PANEL, fg=FG if color else MUTED, font=("Segoe UI", 9),
                                anchor="w", width=17)
                 dot.pack(side="left", padx=(4, 3))
@@ -1156,10 +1236,46 @@ class App(tk.Tk):
 
         threading.Thread(target=work, daemon=True).start()
 
+    def fetch_icons_async(self):
+        """Listede görünen rank'ların sembollerini (yoksa) arka planda indirir."""
+        keys = set()
+        for a in self.accounts:
+            for k in (val_icon_key(self.rank_of(a, "val")), lol_icon_key(self.rank_of(a, "lol"))):
+                if k and not os.path.exists(icon_path(k)):
+                    keys.add(k)
+        if not keys:
+            return
+
+        def work():
+            if any([download_icon(k) for k in sorted(keys)]):
+                self.ranks_dirty = True
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def rank_icon(self, key):
+        """İndirilmiş sembolü ~18 px boyutunda döndürür (yoksa None)."""
+        if not key:
+            return None
+        if key in self.icon_imgs:
+            return self.icon_imgs[key]
+        path = icon_path(key)
+        if not os.path.exists(path):
+            return None
+        try:
+            img = tk.PhotoImage(file=path)
+            n = max(1, -(-max(img.width(), img.height()) // 18))  # yukarı yuvarlanmış küçültme oranı
+            if n > 1:
+                img = img.subsample(n, n)
+        except tk.TclError:
+            img = None
+        self.icon_imgs[key] = img
+        return img
+
     def poll_ui(self):
         """Arka plan işlerinden gelen güncellemeleri ana pencereye uygular."""
         if self.ranks_dirty:
             self.ranks_dirty = False
+            self.fetch_icons_async()
             if self.state() != "withdrawn":
                 self.refresh()
                 self.show_detail()
