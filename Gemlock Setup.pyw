@@ -1,5 +1,5 @@
 """
-Gemlock 1.5.1 — Riot hesap yöneticisi
+Gemlock 1.5.2 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -46,7 +46,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.5.1"
+VERSION = "1.5.2"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -217,7 +217,9 @@ def find_window_of(exe_name):
     return (visible or found or [None])[0]
 
 
-GAME_PROCESSES = {"valorant-win64-shipping.exe", "league of legends.exe"}  # maç/oyun süreçleri
+# Riot Client'ta Play'e basılınca açılan süreçler: bunlardan biri görünür görünmez Gemlock kapanır
+GAME_PROCESSES = {"valorant.exe", "valorant-win64-shipping.exe",
+                  "leagueclient.exe", "leagueclientux.exe", "league of legends.exe"}
 
 
 def game_running():
@@ -890,7 +892,7 @@ class App(tk.Tk):
             s = f"LoL Solo/Duo: {l.get('solo', '—')}  ·  Esnek: {l.get('flex', '—')}"
             if l.get("prev"):
                 s += f"  ·  geçen sezon {l['prev']}"
-            ago = int((time.time() - l.get("ts", time.time())) / 3600)
+            ago = int((time.time() - l.get("ts", time.time())) / 3600)  # eski sürümlerden kalan son bilgi
             s += f"  ({'az önce' if ago < 1 else f'{ago} saat önce' if ago < 48 else f'{ago // 24} gün önce'})"
             lines.append(s)
         self.detail.config(text="\n".join(lines))
@@ -1027,9 +1029,9 @@ class App(tk.Tk):
         ve o hesabın Valorant rank'ını hemen çeker. Sadece bilgisayarın içinde okuma yapılır."""
         try:
             rc = LCU(lockfile=RIOT_CLIENT_LOCKFILE)
-            deadline = time.time() + 90
+            deadline = time.time() + 30
             rid = None
-            while time.time() < deadline and not rid:
+            while time.time() < deadline and not rid and not game_running():
                 if rc.connect():
                     try:
                         sess = rc.get("/chat/v1/session")
@@ -1254,18 +1256,15 @@ class App(tk.Tk):
             return
 
         product = self.game.get()
-        exe = find_riot_exe()
-        if product and exe:
-            time.sleep(1.5)
-            subprocess.Popen([exe, f"--launch-product={product}", "--launch-patchline=live"], close_fds=True)
 
-        # giriş yapılan hesabın Riot ID'sini Riot Client'tan oku (her oyun için)
+        # Önce Riot ID ve Valorant rank'ı (Play'den önce, sadece Riot Client'tan), sonra oyunu başlat.
+        # Oyun açıldığı an Gemlock kapanır; oyun açıkken hiçbir şey okunmaz.
         self.rid_done = False
         threading.Thread(target=self.read_riot_id, args=(self.key_of(a),), daemon=True).start()
+        self.launch_started = time.time()
+        self.after(500, lambda: self.launch_when_ready(product))
 
         if product == "league_of_legends":
-            self.lcu_done = False
-            threading.Thread(target=self.refresh_lol_from_client, args=(self.key_of(a),), daemon=True).start()
             if self.blitz.get():
                 blitz = find_blitz_exe(self.settings.get("blitz_path"))
                 if blitz:
@@ -1275,6 +1274,15 @@ class App(tk.Tk):
                     self.after(1500, lambda: self.focus_blitz(os.path.basename(blitz).lower()))
         self.finish_started = time.time()
         self.after(500, self.finish_when_done)
+
+    def launch_when_ready(self, product):
+        """Riot ID okununca (en fazla 15 sn) seçilen oyunu başlatır."""
+        if not self.rid_done and time.time() - self.launch_started < 15 and not game_running():
+            self.after(500, lambda: self.launch_when_ready(product))
+            return
+        exe = find_riot_exe()
+        if product and exe and not game_running():
+            subprocess.Popen([exe, f"--launch-product={product}", "--launch-patchline=live"], close_fds=True)
 
     def focus_blitz(self, exe_name):
         hwnd = find_window_of(exe_name)

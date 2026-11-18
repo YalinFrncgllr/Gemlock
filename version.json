@@ -1,6 +1,6 @@
 {
-  "version": "1.5.1",
+  "version": "1.5.2",
   "file": "gemlock.pyw",
-  "sha256": "18c242c184c65b3425931929dd213e6203991521ec4177a46747ed7a1c514268",
-  "notes": "Valorant ya da LoL maçı başladığı an Gemlock anında kapanır."
+  "sha256": "2e7aa2a45930734bcbaf7a9653b5c95a4b96ae9f44c309d2767e12abe6f434bc",
+  "notes": "Gemlock artık en geç Play'e basıldığı an (oyun açılınca) kapanıyor. Riot ID ve Valorant rank'ı Play'den önce okunuyor."
 }
