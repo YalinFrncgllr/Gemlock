@@ -1,5 +1,5 @@
 """
-Gemlock 1.7.0 — Riot hesap yöneticisi
+Gemlock 1.7.1 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -27,6 +27,7 @@ import urllib.request
 import winreg
 from ctypes import wintypes
 from tkinter import filedialog, messagebox, ttk
+import tkinter.font as tkfont
 
 APPDATA = os.environ.get("APPDATA", ".")
 LOCALAPPDATA = os.environ.get("LOCALAPPDATA", APPDATA)
@@ -46,7 +47,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.7.0"
+VERSION = "1.7.1"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -462,7 +463,7 @@ STR = {
         "first_login": "Fills in on first login", "rid_pending": "Riot ID is added automatically on the first login with this account",
         "unranked": "Unranked", "last": "last", "peak": "peak", "last_season": "last season", "prev_season": "last season",
         "flex": "Flex", "tft": "TFT", "just_now": "just now", "hours_ago": "{n}h ago", "days_ago": "{n}d ago",
-        "rid_nf": "Riot ID not found",
+        "rid_nf": "No Valorant data",
         "srv_busy": "Rank server is busy; the rest will update next time", "val_fail": "Some Valorant ranks could not be loaded (check your internet)",
         "val_ok": "Valorant ranks are up to date",
         "upd_title": "Gemlock update", "upd_q": "A new version is available: {new} (you have {cur})\n\n{notes}\n\nUpdate now?",
@@ -492,7 +493,7 @@ STR = {
         "first_login": "İlk girişte gelir", "rid_pending": "Riot ID bu hesapla ilk girişte kendiliğinden eklenecek",
         "unranked": "Rank yok", "last": "son", "peak": "en yüksek", "last_season": "son sezon", "prev_season": "geçen sezon",
         "flex": "Esnek", "tft": "TFT", "just_now": "az önce", "hours_ago": "{n} saat önce", "days_ago": "{n} gün önce",
-        "rid_nf": "Riot ID bulunamadı",
+        "rid_nf": "Valorant verisi yok",
         "srv_busy": "Rank sunucusu yoğun, kalan rank'lar sonraki açılışta güncellenecek",
         "val_fail": "Bazı Valorant rank'ları alınamadı (internet bağlantısını kontrol et)", "val_ok": "Valorant rank'ları güncel",
         "upd_title": "Gemlock güncellemesi", "upd_q": "Yeni sürüm var: {new} (şu an {cur})\n\n{notes}\n\nŞimdi güncellensin mi?",
@@ -754,6 +755,24 @@ def lol_short(l):
     return t("unranked")
 
 
+def tft_short(l):
+    if not l or "k" not in l or not l.get("tft"):
+        return "—"
+    return _q_text(l["tft"])
+
+
+def tft_icon_key(l):
+    if not l or "k" not in l or not l.get("tft"):
+        return None
+    return f"lol_{l['tft']['t'].lower()}"
+
+
+def tft_color(l):
+    if not l or "k" not in l or not l.get("tft"):
+        return None
+    return LOL_COLORS.get(l["tft"]["t"])
+
+
 def lol_color(l):
     if not l:
         return None
@@ -848,6 +867,15 @@ BG, PANEL, FG, MUTED = "#0f1420", "#151c2b", "#e6edf5", "#7f8ca1"
 LINE, ROW_LINE, SEL, SEG_BG = "#232d40", "#1b2333", "#1c2740", "#0b101a"
 ACC, ACC_HOVER, ON_ACC, TITLE = "#bfe3f7", "#d6eefb", "#0c1624", "#0b0f18"
 ACCENT = ACC
+def fit_text(text, font, px):
+    """Metni verilen piksel genişliğe sığdırır, sığmazsa sonuna … koyar."""
+    if font.measure(text) <= px:
+        return text
+    while text and font.measure(text + "…") > px:
+        text = text[:-1]
+    return text + "…"
+
+
 def dark_titlebar(win):
     """Windows 10/11'de başlık çubuğunu koyu yapar."""
     try:
@@ -859,6 +887,9 @@ def dark_titlebar(win):
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(color), ctypes.sizeof(color))
     except Exception:
         pass
+# Hesap listesinin sütunları (piksel): başlık ve satırlar aynı genişlikleri kullanır, böylece hizalı kalır
+COL_W = {"bar": 3, "num": 26, "name": 150, "vi": 24, "vt": 140, "li": 24, "lt": 124, "ti": 24, "tt": 110}
+ROW_H = 34
 GAMES = [("valorant", "Valorant"), ("league_of_legends", "LoL"), ("tft", "TFT"), ("", None)]  # None -> t("client_only")
 # Riot Client'a verilecek ürün adı (TFT, LoL client'ının içinden açılır)
 PRODUCT = {"valorant": "valorant", "league_of_legends": "league_of_legends", "tft": "league_of_legends", "": ""}
@@ -997,9 +1028,15 @@ class App(tk.Tk):
         box.pack(padx=12, fill="x")
         head = tk.Frame(box, bg=PANEL)
         head.pack(fill="x")
-        for col, (txt, w) in enumerate(((t("h_account"), 18), ("VALORANT", 20), ("LOL", 20))):
-            tk.Label(head, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w",
-                     width=w).grid(row=0, column=col, sticky="w", padx=(14 if col == 0 else 4, 4), pady=(6, 5))
+        hdr = [(COL_W["bar"] + COL_W["num"], ""), (COL_W["name"], t("h_account")),
+               (COL_W["vi"] + COL_W["vt"], "VALORANT"), (COL_W["li"] + COL_W["lt"], "LOL"),
+               (COL_W["ti"] + COL_W["tt"], "TFT")]
+        for w, txt in hdr:
+            c = tk.Frame(head, bg=PANEL, width=w, height=26)
+            c.pack(side="left")
+            c.pack_propagate(False)
+            tk.Label(c, text=txt, bg=PANEL, fg=MUTED, font=("Segoe UI", 7, "bold"), anchor="w").pack(
+                fill="both", expand=True, padx=(2, 0))
         tk.Frame(box, bg=LINE, height=1).pack(fill="x")
         self.rows_frame = tk.Frame(box, bg=PANEL)
         self.rows_frame.pack(fill="x")
@@ -1010,7 +1047,7 @@ class App(tk.Tk):
         self.detail_id = tk.Label(det, text="", bg=BG, fg=FG, font=("Segoe UI", 9, "bold"), anchor="w")
         self.detail_id.pack(fill="x")
         self.detail = tk.Label(det, text="", bg=BG, fg=MUTED, font=("Segoe UI", 9), justify="left",
-                               anchor="w", wraplength=470)
+                               anchor="w", wraplength=sum(COL_W.values()) - 8)
         self.detail.pack(fill="x")
 
         bar = tk.Frame(root, bg=BG)
@@ -1119,33 +1156,49 @@ class App(tk.Tk):
         for w in self.rows_frame.winfo_children():
             w.destroy()
         self.row_widgets = []
+        name_font = tkfont.Font(family="Segoe UI", size=10)
+        small_font = tkfont.Font(family="Segoe UI", size=9)
+
+        def cell(row, w):
+            c = tk.Frame(row, bg=PANEL, width=w, height=ROW_H)
+            c.pack(side="left")
+            c.pack_propagate(False)
+            return c
+
         for i, a in enumerate(self.accounts):
             row = tk.Frame(self.rows_frame, bg=PANEL)
             row.pack(fill="x")
             if i:
                 tk.Frame(self.rows_frame, bg=ROW_LINE, height=1).pack(fill="x", before=row)
-            bar = tk.Frame(row, bg=PANEL, width=3)
-            bar.pack(side="left", fill="y")
+            bar = cell(row, COL_W["bar"])
             cells = []
-            num = tk.Label(row, text=str(i + 1) if i < 9 else "", bg=PANEL, fg=MUTED,
-                           font=("Segoe UI", 8, "bold"), width=2, anchor="e")
-            name = tk.Label(row, text=a["name"], bg=PANEL, fg=FG, font=("Segoe UI", 10), anchor="w", width=16)
-            num.pack(side="left", padx=(6, 6), pady=7)
-            name.pack(side="left")
-            cells += [num, name]
+            c = cell(row, COL_W["num"])
+            num = tk.Label(c, text=str(i + 1) if i < 9 else "", bg=PANEL, fg=MUTED, font=("Segoe UI", 8, "bold"),
+                           anchor="e")
+            num.pack(fill="both", expand=True, padx=(0, 8))
+            cells += [c, num]
+            c = cell(row, COL_W["name"])
+            name = tk.Label(c, text=fit_text(a["name"], name_font, COL_W["name"] - 8), bg=PANEL, fg=FG,
+                            font=name_font, anchor="w")
+            name.pack(fill="both", expand=True)
+            cells += [c, name]
             vr, lr = self.rank_of(a, "val"), self.rank_of(a, "lol")
-            for text, color, ikey in ((val_short(vr, bool(a.get("riot_id"))), val_color(vr), val_icon_key(vr)),
-                                      (lol_short(lr), lol_color(lr), lol_icon_key(lr))):
+            for (text, color, ikey), (wi, wt) in (
+                    ((val_short(vr, bool(a.get("riot_id"))), val_color(vr), val_icon_key(vr)), ("vi", "vt")),
+                    ((lol_short(lr), lol_color(lr), lol_icon_key(lr)), ("li", "lt")),
+                    ((tft_short(lr), tft_color(lr), tft_icon_key(lr)), ("ti", "tt"))):
+                ci = cell(row, COL_W[wi])
                 img = self.rank_icon(ikey)
                 if img is not None:
-                    dot = tk.Label(row, image=img, bg=PANEL, width=18, height=18)
+                    dot = tk.Label(ci, image=img, bg=PANEL)
                 else:
-                    dot = tk.Label(row, text="●" if color else "○", bg=PANEL, fg=color or MUTED, font=("Segoe UI", 8))
-                lab = tk.Label(row, text=text, bg=PANEL, fg=FG if color else MUTED, font=("Segoe UI", 9),
-                               anchor="w", width=17)
-                dot.pack(side="left", padx=(4, 3))
-                lab.pack(side="left")
-                cells += [dot, lab]
+                    dot = tk.Label(ci, text="●" if color else "○", bg=PANEL, fg=color or MUTED, font=("Segoe UI", 8))
+                dot.pack(fill="both", expand=True)
+                ct = cell(row, COL_W[wt])
+                lab = tk.Label(ct, text=fit_text(text, small_font, COL_W[wt] - 6), bg=PANEL,
+                               fg=FG if color else MUTED, font=small_font, anchor="w")
+                lab.pack(fill="both", expand=True, padx=(2, 0))
+                cells += [ci, dot, ct, lab]
             for w in [row, bar] + cells:
                 w.bind("<Button-1>", lambda e, k=i: self.select(k))
                 w.bind("<Double-Button-1>", lambda e, k=i: (self.select(k), self.choose()))
@@ -1240,7 +1293,8 @@ class App(tk.Tk):
         """Listede görünen rank'ların sembollerini (yoksa) arka planda indirir."""
         keys = set()
         for a in self.accounts:
-            for k in (val_icon_key(self.rank_of(a, "val")), lol_icon_key(self.rank_of(a, "lol"))):
+            for k in (val_icon_key(self.rank_of(a, "val")), lol_icon_key(self.rank_of(a, "lol")),
+                      tft_icon_key(self.rank_of(a, "lol"))):
                 if k and not os.path.exists(icon_path(k)):
                     keys.add(k)
         if not keys:

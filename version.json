@@ -1,7 +1,7 @@
 {
-  "version": "1.7.0",
+  "version": "1.7.1",
   "file": "gemlock.pyw",
-  "sha256": "3ab18e4194f86b361c9f1724f62e2a1d8e6e2378232d144cc698442ab4f1572b",
-  "notes": "Rank sembolleri: listede renkli nokta yerine oyundaki rank sembolleri görünüyor.",
-  "notes_en": "Rank emblems: the list now shows the in-game rank emblems instead of colored dots."
+  "sha256": "d55670c02e0ff92e64b3d947a4cc8327f0ac2d3bf8dcd8c56393e8de0facfcb8",
+  "notes": "Hesap listesi sütunları hizalandı, TFT sütunu eklendi, pencere biraz genişledi.",
+  "notes_en": "Account list columns are aligned, a TFT column was added and the window is a bit wider."
 }
