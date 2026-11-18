@@ -1,5 +1,5 @@
 """
-Gemlock 1.9.0 — Riot hesap yöneticisi
+Gemlock 1.9.1 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -47,7 +47,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.9.0"
+VERSION = "1.9.1"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -486,7 +486,7 @@ STR = {
         "upd_now": "Check now", "sc_ok_t": "Done", "sc_ok": "A 'Gemlock' shortcut was created on your desktop.",
         "sc_fail": "Could not create the shortcut.", "sc_btn": "Create desktop shortcut",
         "dpapi": "Could not decrypt (it may belong to another Windows user)",
-        "add_account": "+  Add account", "minimize": "Minimize", "close": "Close", "settings": "Settings", "back": "←  Back", "sec_general": "General",
+        "add_account": "+  Add account", "minimize": "Minimize", "close": "Close", "show": "Show", "hide": "Hide", "settings": "Settings", "back": "←  Back", "sec_general": "General",
         "sec_val": "Valorant ranks", "refresh_ranks": "Refresh ranks now", "sec_app": "App", "sec_data": "Your data",
         "data_info": "Accounts and passwords are stored only on this PC, encrypted by Windows. Nothing is uploaded.",
         "open_folder": "Open data folder", "move_up": "Move up", "move_down": "Move down", "cancel": "Cancel",
@@ -525,7 +525,7 @@ STR = {
         "upd_now": "Şimdi kontrol et", "sc_ok_t": "Tamam", "sc_ok": "Masaüstüne 'Gemlock' kısayolu oluşturuldu.",
         "sc_fail": "Kısayol oluşturulamadı.", "sc_btn": "Masaüstüne simgeli kısayol oluştur",
         "dpapi": "Şifre çözülemedi (başka bir Windows kullanıcısına ait olabilir)",
-        "add_account": "+  Hesap ekle", "minimize": "Küçült", "close": "Kapat", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
+        "add_account": "+  Hesap ekle", "minimize": "Küçült", "close": "Kapat", "show": "Göster", "hide": "Gizle", "settings": "Ayarlar", "back": "←  Geri", "sec_general": "Genel",
         "sec_val": "Valorant rank'ları", "refresh_ranks": "Rank'ları şimdi yenile", "sec_app": "Uygulama",
         "sec_data": "Verilerin",
         "data_info": "Hesapların ve şifrelerin sadece bu bilgisayarda, Windows şifrelemesiyle saklanıyor. Hiçbir yere yüklenmez.",
@@ -943,41 +943,34 @@ def sign_out_riot():
         pass
 
 
-class Toggle(tk.Canvas):
-    """Modern açma/kapama anahtarı (işaret kutusu yerine)."""
-    W, H = 34, 18
+class Toggle(tk.Label):
+    """Modern açma/kapama anahtarı. Kenarları yumuşak, önceden çizilmiş karelerle (Windows'ta pikselli görünmez)."""
+    _imgs = None
 
     def __init__(self, parent, on, command):
-        super().__init__(parent, width=self.W, height=self.H, bg=parent["bg"], highlightthickness=0,
-                         bd=0, cursor="hand2")
+        if Toggle._imgs is None:
+            Toggle._imgs = [tk.PhotoImage(data=d) for d in TOGGLE_FRAMES]
+        super().__init__(parent, bg=parent["bg"], bd=0, cursor="hand2", padx=0, pady=2)
         self.on = bool(on)
         self.command = command
+        self._show(len(self._imgs) - 1 if self.on else 0)
         self.bind("<Button-1>", lambda e: self.toggle())
-        self.draw()
 
-    def draw(self, knob_x=None):
-        self.delete("all")
-        w, h, r = self.W, self.H, self.H / 2
-        track = ACC if self.on else LINE
-        self.create_oval(0, 0, h, h, fill=track, outline=track)
-        self.create_oval(w - h, 0, w, h, fill=track, outline=track)
-        self.create_rectangle(r, 0, w - r, h, fill=track, outline=track)
-        x = knob_x if knob_x is not None else (w - r if self.on else r)
-        knob = ON_ACC if self.on else MUTED
-        self.create_oval(x - r + 3, 3, x + r - 3, h - 3, fill=knob, outline=knob)
+    def _show(self, k):
+        self.config(image=self._imgs[k])
 
     def set(self, on, animate=True):
         on = bool(on)
         if on == self.on:
             return
         self.on = on
+        n = len(self._imgs) - 1
         if not animate:
-            self.draw()
+            self._show(n if on else 0)
             return
-        r = self.H / 2
-        a, b = (r, self.W - r) if on else (self.W - r, r)
-        for i in range(1, 7):
-            self.after(i * 16, lambda x=a + (b - a) * i / 6: self.draw(x))
+        seq = range(1, n + 1) if on else range(n - 1, -1, -1)
+        for i, k in enumerate(seq, start=1):
+            self.after(i * 18, lambda k=k: self._show(k))
 
     def toggle(self):
         self.set(not self.on)
@@ -1958,9 +1951,19 @@ class App(tk.Tk):
             e.grid(row=r, column=1, sticky="we", pady=5, ipady=4)
             if r == 1:
                 e.focus_set()
+            if secret:
+                eye = tk.Label(body, text=t("show"), bg=BG, fg=ACC, font=("Segoe UI", 8, "bold"), cursor="hand2")
+                eye.grid(row=r, column=2, padx=(8, 0))
+
+                def flip(_e=None, e=e, eye=eye):
+                    hidden = e.cget("show") != ""
+                    e.config(show="" if hidden else "•")
+                    eye.config(text=t("hide") if hidden else t("show"))
+
+                eye.bind("<Button-1>", flip)
             vars_.append(v)
         tk.Label(body, text=t("rid_hint"), bg=BG, fg=MUTED, font=("Segoe UI", 8), wraplength=340,
-                 justify="left").grid(row=5, column=0, columnspan=2, sticky="w", pady=(2, 12))
+                 justify="left").grid(row=5, column=0, columnspan=3, sticky="w", pady=(2, 12))
         result = {}
 
         def ok(_=None):
@@ -1968,7 +1971,7 @@ class App(tk.Tk):
             win.destroy()
 
         btns = tk.Frame(body, bg=BG)
-        btns.grid(row=6, column=0, columnspan=2, sticky="e")
+        btns.grid(row=6, column=0, columnspan=3, sticky="e")
         cancel = tk.Label(btns, text=t("cancel"), bg=PANEL, fg=FG, font=("Segoe UI", 9), padx=16, pady=6,
                           cursor="hand2", highlightthickness=1, highlightbackground=LINE)
         cancel.pack(side="left", padx=(0, 8))
@@ -2172,6 +2175,8 @@ class App(tk.Tk):
         self.bind("<Escape>", lambda e: self.close())
         self.refresh()
 
+
+TOGGLE_FRAMES = ["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"]
 
 TITLE_ICON_B64 = "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAACZklEQVR42rWTy0tUcRTHv+d3ZxxnNCcfkZuKFiE5BgVBEkGzbxEShpseqxK0Fu1yM4KLVmbqxn+gTQ8tWlWLLLWcnCRfhSCaMPlgfMzjzsz93Xt/v9PCSQYJskWf5XlxvofvAQowM2GfFNfSnkQjgGoAvDdXFNskovHdaIRZFJprTcU2/4Xh7z/tsUWrFgAikYgQnYAAABNosQneyeVNmZGuAqAsx1WZvK0sV6ul9aR69mFaOi57oTItABAOdwoq6BHLKXcm66i6+Moam1nLOH38EI4droKtGatbJuaWVkBg5fP5yZbb832JmVOvL13THuxsoCu9evRo0HfSMUuVwRrDXxdw5sQRlAVK8fnbIhxLIpVMwmUh7Oz66JvWG/rqk6fCAEDhcBiu13ivNa77/WUV/lIv11RX0UY6i5HoFDYTCWxvbem8JUXeyq/kcqnLY2/P2c319TuXZmaDiFSKuUkAg/M/NpSrtCGljdjkNGzHgi1dFThQYaRT5pWutubBublZIxRqUAIAiEgxsxEkGoonrKGDVTVGLpdTeSnhahe2dJUvEDDWV1dfdLU1D0bHx41QqEGhoL/IBkyqvPSumTXTJAyyLMmObTMIZFky7Q1W3mFmmojF+HfT7gAi0gBEQ4DiycT2fa+/XEjpKOW6KkAeoZOpjge3muKPerqN9vZ2/UcnAsAws3ER0C8nFka11udnp6bBpvkxcu/mhfkvUVF3tlEV14u9A4KxKIiIS3y+265iDRLaZWoFEXf3+Pb3LH29ax4A6H3+rq+j/3E/AAwM9HvwDxAz06uhjPfhp5GSglsJ/4NfWPpuydfGlREAAAAASUVORK5CYII="
 

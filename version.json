@@ -1,7 +1,7 @@
 {
-  "version": "1.9.0",
+  "version": "1.9.1",
   "file": "gemlock.pyw",
-  "sha256": "1e89ee74dd7b40233306f2dc5d1edd3ab0404b90e3b9b20878acd532b12856a0",
-  "notes": "Blitz her oyun için ayrı ayarlanıyor (Valorant dahil), işaret kutusu yerine modern açma/kapama anahtarı, bölge seçimi haplarla.",
-  "notes_en": "Blitz is set separately for each game (including Valorant), a modern on/off switch replaces the checkbox, region picker uses pills."
+  "sha256": "d47d20bb6d4d65b5b101d39586e3a51e1bc6fe0274b42abb5933c81e1a3db641",
+  "notes": "Açma/kapama anahtarı artık pürüzsüz, şifre alanında Göster/Gizle.",
+  "notes_en": "The on/off switch is now smooth; the password field has Show/Hide."
 }
