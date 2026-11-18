@@ -7,10 +7,11 @@ A small Windows tool for switching between Riot accounts with one click.
 - Optionally opens Blitz together with League.
 - Updates itself from this repository.
 
-## Security
-- Passwords are encrypted with Windows DPAPI and stored only on your PC (`%APPDATA%\riot_hesaplar.json`). Only your Windows user can decrypt them.
-- Passwords are never sent anywhere except typed into the Riot Client login screen.
-- Only public Riot IDs are sent to the HenrikDev API.
+## Privacy and security
+- Like Obsidian, everything stays local: account labels, usernames, passwords, Riot IDs, ranks and settings live only on your PC in `%LOCALAPPDATA%\Gemlock\data`, encrypted with Windows DPAPI. Only your Windows user on your PC can decrypt them.
+- This repository contains only the program. Anyone who downloads it starts with an empty list.
+- Gemlock never uploads your data. Its only network requests are: Riot IDs (public) to the HenrikDev API for Valorant ranks, and reading `version.json` / `gemlock.pyw` from this repository for updates.
+- Credentials are typed only while the Riot Client window has focus; if focus changes, typing stops.
 
 ## Install
 1. Install Python 3 from python.org (tick "Add python.exe to PATH").

@@ -1,6 +1,6 @@
 {
-  "version": "1.2.1",
+  "version": "1.3.0",
   "file": "gemlock.pyw",
-  "sha256": "d1d5c7f9bec49685c977881ed3166f372fc41c107b4d9708add8d9e720fea24d",
-  "notes": "Güvenlik: şifre artık sadece Riot Client öndeyse yazılıyor; başka pencereye yazılması engellendi."
+  "sha256": "c51a923d90914c71ee88377dce155af14bada0a82e37308b313b01f175a6ffbd",
+  "notes": "Tüm veriler artık tamamen şifreli ve sadece bu bilgisayarda. Daha küçük, net elmas simge."
 }
