@@ -1,7 +1,7 @@
 {
-  "version": "1.7.2",
+  "version": "1.8.0",
   "file": "gemlock.pyw",
-  "sha256": "10a3e80dffee40dac66aca7ddb12ebd14fa8110c285449031fe80a370bb50fe1",
-  "notes": "Pencerede büyüt düğmesi kaldırıldı; Riot Client gibi sadece küçült ve kapat var.",
-  "notes_en": "The maximize button was removed; like the Riot Client, only minimize and close remain."
+  "sha256": "e1ed70ddc7e84b12cb7309446bfdb1e590af7b29f4e5a99da00a3b0e042a4409",
+  "notes": "Ayarlar artık aynı pencerede açılıyor; hesaplar listeden sağ tıkla yönetiliyor, '+ Hesap ekle' butonu eklendi. Tek tıkla hesap değiştirme ve LoL düşüş uyarısı.",
+  "notes_en": "Settings now open in the same window; manage accounts by right-clicking them, plus an '+ Add account' button. One-click account switching and a LoL decay warning."
 }
