@@ -1,5 +1,5 @@
 """
-Gemlock 1.5.2 — Riot hesap yöneticisi
+Gemlock 1.5.3 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -46,7 +46,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.5.2"
+VERSION = "1.5.3"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -217,13 +217,14 @@ def find_window_of(exe_name):
     return (visible or found or [None])[0]
 
 
-# Riot Client'ta Play'e basılınca açılan süreçler: bunlardan biri görünür görünmez Gemlock kapanır
-GAME_PROCESSES = {"valorant.exe", "valorant-win64-shipping.exe",
-                  "leagueclient.exe", "leagueclientux.exe", "league of legends.exe"}
+VAL_PROCS = {"valorant.exe", "valorant-win64-shipping.exe"}   # Valorant oyunu
+LOL_CLIENT_PROCS = {"leagueclient.exe", "leagueclientux.exe"}    # LoL client'ı (lobi)
+LOL_MATCH_PROCS = {"league of legends.exe"}                      # LoL maçı
+GAME_PROCESSES = VAL_PROCS | LOL_CLIENT_PROCS | LOL_MATCH_PROCS
 
 
-def game_running():
-    """Valorant oyunu ya da LoL maçı açıldı mı? (Gemlock o an kapanır)"""
+def game_running(names=GAME_PROCESSES):
+    """Verilen oyun süreçlerinden biri açık mı?"""
     try:
         psapi = ctypes.WinDLL("psapi")
         arr = (wintypes.DWORD * 4096)()
@@ -231,7 +232,7 @@ def game_running():
         if not psapi.EnumProcesses(ctypes.byref(arr), ctypes.sizeof(arr), ctypes.byref(needed)):
             return False
         for i in range(needed.value // ctypes.sizeof(wintypes.DWORD)):
-            if arr[i] and _process_name(arr[i]) in GAME_PROCESSES:
+            if arr[i] and _process_name(arr[i]) in names:
                 return True
     except Exception:
         pass
@@ -410,11 +411,23 @@ def ver_tuple(v):
 
 
 def gh_raw(path):
-    """Açık GitHub deposundan bir dosyanın ham içeriğini indirir."""
-    url = f"https://raw.githubusercontent.com/{UPDATE_REPO}/main/{urllib.parse.quote(path)}?t={int(time.time())}"
-    req = urllib.request.Request(url, headers={"User-Agent": "Gemlock", "Cache-Control": "no-cache"})
-    with urllib.request.urlopen(req, timeout=20) as r:
-        return r.read()
+    """Açık GitHub deposundan bir dosyanın ham içeriğini indirir.
+    Önce GitHub API (gecikmesiz), olmazsa raw adresi (birkaç dakika önbellekli olabilir)."""
+    q = urllib.parse.quote(path)
+    tries = [
+        (f"https://api.github.com/repos/{UPDATE_REPO}/contents/{q}?ref=main",
+         {"Accept": "application/vnd.github.raw+json", "User-Agent": "Gemlock"}),
+        (f"https://raw.githubusercontent.com/{UPDATE_REPO}/main/{q}?t={int(time.time())}",
+         {"User-Agent": "Gemlock", "Cache-Control": "no-cache"}),
+    ]
+    last = None
+    for url, headers in tries:
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=headers), timeout=20) as r:
+                return r.read()
+        except Exception as e:
+            last = e
+    raise last
 
 
 def self_install():
@@ -647,6 +660,7 @@ class App(tk.Tk):
         self.lcu_done = True
         self.blitz_done = True
         self.rid_done = True
+        self.exit_procs = GAME_PROCESSES
         self.ranks_dirty = False
         self.ui_msg = ""
         self.logged_in = False
@@ -1070,7 +1084,8 @@ class App(tk.Tk):
         lcu = LCU(league)
         deadline = time.time() + 180
         me = None
-        while time.time() < deadline:
+        stop = VAL_PROCS | LOL_MATCH_PROCS
+        while time.time() < deadline and not game_running(stop):
             if lcu.connect():
                 try:
                     me = lcu.get("/lol-summoner/v1/current-summoner")
@@ -1090,6 +1105,8 @@ class App(tk.Tk):
                     a["riot_id"] = f"{me['gameName']}#{me.get('tagLine', '')}"
                     save_json(DATA_FILE, self.accounts)
         for a in list(self.accounts):
+            if game_running(stop):
+                break  # maç başladı: okumayı bırak
             try:
                 if self.key_of(a) == logged_user_key:
                     puuid = me["puuid"]
@@ -1264,6 +1281,15 @@ class App(tk.Tk):
         self.launch_started = time.time()
         self.after(500, lambda: self.launch_when_ready(product))
 
+        # Valorant / sadece Client: herhangi bir oyun açıldığı an kapan.
+        # LoL: client'ta rank'ları okuyup kapan; maç başlarsa her durumda anında kapan.
+        if product == "league_of_legends":
+            self.exit_procs = VAL_PROCS | LOL_MATCH_PROCS
+            self.lcu_done = False
+            threading.Thread(target=self.refresh_lol_from_client, args=(self.key_of(a),), daemon=True).start()
+        else:
+            self.exit_procs = GAME_PROCESSES
+
         if product == "league_of_legends":
             if self.blitz.get():
                 blitz = find_blitz_exe(self.settings.get("blitz_path"))
@@ -1300,7 +1326,7 @@ class App(tk.Tk):
     def finish_when_done(self):
         # LoL rank'ları okunup Blitz öne gelince (en fazla ~3,5 dk) program tamamen kapanır
         # işler bitince ya da oyun/maç başladığı an (Gemlock oyun açıkken hiç çalışmasın) tamamen kapan
-        if (self.lcu_done and self.blitz_done and self.rid_done) or game_running() \
+        if (self.lcu_done and self.blitz_done and self.rid_done) or game_running(self.exit_procs) \
                 or time.time() - self.finish_started > 210:
             self.destroy()
             return
