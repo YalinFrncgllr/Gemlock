@@ -1,5 +1,5 @@
 """
-Gemlock 1.4.0 — Riot hesap yöneticisi
+Gemlock 1.5.0 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -46,7 +46,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "1.4.0"
+VERSION = "1.5.0"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -517,11 +517,14 @@ def fetch_val_rank(region, name, tag, version):
         return json.loads(r.read().decode("utf-8")).get("data") or {}
 
 
+RIOT_CLIENT_LOCKFILE = os.path.join(os.environ.get("LOCALAPPDATA", ""), "Riot Games", "Riot Client", "Config", "lockfile")
+
+
 class LCU:
     """Açık olan LoL client'ın yerel API'si (Blitz/Porofessor'un kullandığı)."""
 
-    def __init__(self, league_dir):
-        self.lockfile = os.path.join(league_dir, "lockfile")
+    def __init__(self, league_dir=None, lockfile=None):
+        self.lockfile = lockfile or os.path.join(league_dir, "lockfile")
         self.ctx = ssl.create_default_context()
         self.ctx.check_hostname = False
         self.ctx.verify_mode = ssl.CERT_NONE  # sadece 127.0.0.1, client'ın kendi sertifikası
@@ -622,6 +625,7 @@ class App(tk.Tk):
         self.last_rect = None
         self.lcu_done = True
         self.blitz_done = True
+        self.rid_done = True
         self.ranks_dirty = False
         self.ui_msg = ""
         self.logged_in = False
@@ -643,7 +647,7 @@ class App(tk.Tk):
             b.bind("<Button-1>", lambda e, c=code: self.set_game(c))
             self.game_btns[code] = b
 
-        self.blitz = tk.BooleanVar(value=self.settings.get("blitz", True))
+        self.blitz = tk.BooleanVar(value=self.settings.get("blitz", False))
         self.blitz_box = tk.Checkbutton(self, text="LoL ile Blitz'i de aç", variable=self.blitz,
                                         command=self.blitz_toggled, bg=BG, fg=FG, selectcolor=PANEL,
                                         activebackground=BG, activeforeground=FG, font=("Segoe UI", 9),
@@ -828,7 +832,7 @@ class App(tk.Tk):
             num.pack(side="left", padx=(6, 6), pady=7)
             name.pack(side="left")
             cells += [num, name]
-            v = self.rank_of(a, "val").get("short") or ("Riot ID ekle" if not a.get("riot_id") else "—")
+            v = self.rank_of(a, "val").get("short") or ("İlk girişte gelir" if not a.get("riot_id") else "—")
             l = self.rank_of(a, "lol").get("short") or "—"
             for text, cmap in ((v, VAL_COLORS), (l, LOL_COLORS)):
                 color = tier_color(text, cmap)
@@ -854,7 +858,7 @@ class App(tk.Tk):
             return
         a = self.accounts[i]
         v, l = self.rank_of(a, "val"), self.rank_of(a, "lol")
-        self.detail_id.config(text=a.get("riot_id") or "Riot ID girilmemiş · ⚙ → Düzenle")
+        self.detail_id.config(text=a.get("riot_id") or "Riot ID bu hesapla ilk girişte kendiliğinden eklenecek")
         lines = []
         if v:
             s = f"Valorant: {v.get('current', '—')}"
@@ -997,6 +1001,43 @@ class App(tk.Tk):
         kernel32.CloseHandle(_mutex)  # yeni sürüm açılabilsin
         subprocess.Popen([pythonw_exe(), INSTALLED_SCRIPT], close_fds=True, cwd=INSTALL_DIR)
         self.destroy()
+
+    # ------------------------------------------------------------ Riot ID
+    def read_riot_id(self, user_key):
+        """Girişten sonra Riot Client'ın yerel bilgisinden oyun adı#etiketi okur, hesaba yazar
+        ve o hesabın Valorant rank'ını hemen çeker. Sadece bilgisayarın içinde okuma yapılır."""
+        try:
+            rc = LCU(lockfile=RIOT_CLIENT_LOCKFILE)
+            deadline = time.time() + 90
+            rid = None
+            while time.time() < deadline and not rid:
+                if rc.connect():
+                    try:
+                        sess = rc.get("/chat/v1/session")
+                        if sess.get("loaded") and sess.get("game_name") and sess.get("game_tag"):
+                            rid = f"{sess['game_name']}#{sess['game_tag']}"
+                    except Exception:
+                        pass
+                if not rid:
+                    time.sleep(2)
+            if not rid:
+                return
+            with self.rank_lock:
+                for a in self.accounts:
+                    if self.key_of(a) == user_key and a.get("riot_id") != rid:
+                        a["riot_id"] = rid  # yeni ya da değişmiş isim
+                        save_json(DATA_FILE, self.accounts)
+            name, tag = split_riot_id(rid)
+            played = self.settings.get("played", {}).get(user_key, time.time())
+            try:
+                summ = summarize_val(fetch_val_rank(self.settings.get("region", "eu"), name, tag, f"p{int(played)}"))
+                with self.rank_lock:
+                    self.ranks.setdefault(user_key, {})["val"] = summ
+                    save_json(RANK_FILE, self.ranks)
+            except Exception:
+                pass
+        finally:
+            self.rid_done = True
 
     # ------------------------------------------------------------ LoL rank
     def refresh_lol_from_client(self, logged_user_key):
@@ -1199,6 +1240,10 @@ class App(tk.Tk):
             time.sleep(1.5)
             subprocess.Popen([exe, f"--launch-product={product}", "--launch-patchline=live"], close_fds=True)
 
+        # giriş yapılan hesabın Riot ID'sini Riot Client'tan oku (her oyun için)
+        self.rid_done = False
+        threading.Thread(target=self.read_riot_id, args=(self.key_of(a),), daemon=True).start()
+
         if product == "league_of_legends":
             self.lcu_done = False
             threading.Thread(target=self.refresh_lol_from_client, args=(self.key_of(a),), daemon=True).start()
@@ -1227,7 +1272,7 @@ class App(tk.Tk):
 
     def finish_when_done(self):
         # LoL rank'ları okunup Blitz öne gelince (en fazla ~3,5 dk) program tamamen kapanır
-        if (self.lcu_done and self.blitz_done) or time.time() - self.finish_started > 210:
+        if (self.lcu_done and self.blitz_done and self.rid_done) or time.time() - self.finish_started > 210:
             self.destroy()
             return
         self.after(500, self.finish_when_done)
@@ -1252,8 +1297,8 @@ class App(tk.Tk):
             if r == 0:
                 e.focus_set()
             vars_.append(v)
-        ttk.Label(win, text="Riot ID oyunda görünen isim, örn. Oyuncu#TR1. Rank için gerekli; "
-                            "boş bırakırsan LoL'e ilk girişte kendiliğinden dolar.",
+        ttk.Label(win, text="İsteğe bağlı. Boş bırakırsan bu hesapla Gemlock üzerinden ilk girişte "
+                            "kendiliğinden dolar (örn. Oyuncu#TR1).",
                   wraplength=330, foreground=MUTED).grid(row=4, column=0, columnspan=2, padx=8, sticky="w")
         result = {}
 
