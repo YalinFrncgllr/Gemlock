@@ -3,7 +3,8 @@
 A small Windows tool for switching between Riot accounts with one click.
 
 - Pick a game (Valorant, League of Legends, TFT, or just the Riot Client) and an account; Gemlock types the login into the Riot Client, launches the game, and closes itself.
-- Shows Valorant ranks (through the Gemlock rank server, no API key needed) and League Solo/Duo ranks (read from the local League client after you log in).
+- Shows Valorant ranks (through the Gemlock rank server, no API key needed) and League Solo/Duo, Flex and TFT ranks (read from the local League client after you log in), with rank emblems.
+- English and Turkish interface.
 - Optionally opens Blitz together with League.
 - Updates itself from this repository.
 
@@ -13,9 +14,12 @@ A small Windows tool for switching between Riot accounts with one click.
 - Gemlock never uploads your data. Its only network requests are: Riot IDs (public) to the Gemlock rank server (`server/`, hosted on Vercel, which asks the HenrikDev API and caches results; it stores nothing) for Valorant ranks, and reading `version.json` / `gemlock.pyw` from this repository for updates.
 - Credentials are typed only while the Riot Client window has focus; if focus changes, typing stops.
 
+## Download
+**[Download the latest Gemlock Setup.pyw](https://github.com/YalinFrncgllr/Gemlock/releases/latest/download/Gemlock.Setup.pyw)** — or see [Releases](https://github.com/YalinFrncgllr/Gemlock/releases).
+
 ## Install
 1. Install **Python 3** from [python.org](https://www.python.org/downloads/). During setup, tick **"Add python.exe to PATH"**.
-2. Download **[Gemlock Setup.pyw](https://gemlock-api.vercel.app/download)**.
+2. Download **[Gemlock.Setup.pyw](https://github.com/YalinFrncgllr/Gemlock/releases/latest/download/Gemlock.Setup.pyw)**. If your browser warns about the file type, choose **Keep**.
 3. Double-click it. If Windows asks which app to open it with, choose **Python (default windowed)** and tick "Always".
 4. Gemlock installs itself to `%LOCALAPPDATA%\Gemlock`, removes the setup file and puts a **Gemlock** shortcut on your desktop.
 5. Add your accounts with **+ Add account**. Everything you add stays encrypted on your own PC.
