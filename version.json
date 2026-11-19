@@ -1,7 +1,7 @@
 {
-  "version": "2.2.0",
+  "version": "2.2.1",
   "file": "gemlock.pyw",
-  "sha256": "2039e54e23f3fecf55808126cc5831271995a791566d383e7d3b27e1c9a503df",
-  "notes": "Rank değişimi (+18 RR, −20 LP; kademe değişince ▲/▼), Riot ID'yi tek tıkla kopyalama, detayda son oynama zamanı.",
-  "notes_en": "Rank changes (+18 RR, −20 LP; ▲/▼ when the tier changes), one-click Riot ID copy, last played time in the details."
+  "sha256": "f508854746e1edc50aa8b0880136d0275da7330ad2313d45bf56b79ae7af9f54",
+  "notes": "Hesaplar artık seçili oyuna göre yer değiştirmiyor; hep eklediğin sırada duruyor.",
+  "notes_en": "Accounts no longer reorder by the selected game; they always stay in the order you added them."
 }

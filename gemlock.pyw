@@ -1,5 +1,5 @@
 """
-Gemlock 2.2.0 — Riot hesap yöneticisi
+Gemlock 2.2.1 — Riot hesap yöneticisi
 Kurulum: "Gemlock Setup.pyw" dosyasına çift tıkla (kendini kurar, masaüstüne kısayol koyar).
 - Çift tıkla: Riot Client kapalıysa onu da açar, hesap listesi gelir
 - Oyunu seç (Valorant / LoL / sadece Client), hesabı seç (Enter / çift tık / 1-9)
@@ -48,7 +48,7 @@ INSTALLED_SCRIPT = os.path.join(INSTALL_DIR, "gemlock.pyw")
 CREATE_NO_WINDOW = 0x08000000
 VAL_IDLE_SEC = 6 * 3600    # oynanmayan hesaplar 6 saatte bir yenilenir
 RANK_API = "https://gemlock-api.vercel.app/api/rank"  # anahtar sunucuda gizli; kullanıcı hiçbir şey kurmaz
-VERSION = "2.2.0"
+VERSION = "2.2.1"
 UPDATE_REPO = "YalinFrncgllr/Gemlock"  # herkese açık depo; güncellemeler buradan gelir
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -1582,24 +1582,9 @@ class App(tk.Tk):
         return self.sel_index
 
     def display_order(self):
-        """Ekranda görünen sıra: sabitlenenler en üstte; istenirse seçili oyunda rank'ı olanlar önce."""
+        """Ekranda görünen sıra: eklenme sırası; sabitlenenler en üstte."""
         idx = list(range(len(self.accounts)))
-        game = self.game.get()
-
-        def has_data(i):
-            a = self.accounts[i]
-            if game == "valorant":
-                v = self.rank_of(a, "val")
-                return bool(v.get("cur") or v.get("last") or v.get("peak") or ("short" in v and "k" not in v))
-            if game in LEAGUE_GAMES:
-                l = self.rank_of(a, "lol")
-                if "k" not in l:
-                    return bool(l.get("short"))
-                return bool(l.get("tft") if game == "tft" else (l.get("solo") or l.get("prev")))
-            return True
-
-        sort_on = self.settings.get("sort_by_game", True)
-        return sorted(idx, key=lambda i: (not self.accounts[i].get("pinned"), (not has_data(i)) if sort_on else False))
+        return sorted(idx, key=lambda i: not self.accounts[i].get("pinned"))
 
     def select(self, i, user=True):
         if not self.accounts:
@@ -2486,20 +2471,6 @@ class App(tk.Tk):
 
         def button(parent, text, cmd, primary=False):
             return self.pill(parent, text, cmd, kind="accent" if primary else "ghost")
-
-        # Hesap listesi
-        lb_ = section(t("sec_list"))
-        row = tk.Frame(lb_, bg=PANEL)
-        row.pack(fill="x")
-
-        def sort_toggled(on):
-            self.settings["sort_by_game"] = on
-            save_json(SETTINGS_FILE, self.settings)
-
-        Toggle(row, self.settings.get("sort_by_game", True), sort_toggled).pack(side="left")
-        tk.Label(row, text=t("sort_game"), bg=PANEL, fg=FG, font=("Segoe UI", 9)).pack(side="left", padx=(8, 0))
-        tk.Label(lb_, text=t("sort_hint"), bg=PANEL, fg=MUTED, font=("Segoe UI", 8), wraplength=560,
-                 justify="left").pack(anchor="w", pady=(6, 0))
 
         # Valorant
         vb = section(t("sec_val"))
